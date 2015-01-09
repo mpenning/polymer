@@ -1,0 +1,8 @@
+include LICENSE CHANGES README.rst requirements.txt
+recursive-exclude * __pycache__
+recursive-exclude * *.pyc
+recursive-exclude * *.pyo
+recursive-exclude * *.orig
+recursive-exclude * BUILD.ME
+recursive-exclude * BITBUCKET_HG
+prune sphinx-doc/_build
