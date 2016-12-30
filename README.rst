@@ -8,8 +8,6 @@ Usage
 
 .. code:: python
 
-   from multiprocessing import Process, Queue
-   from Queue import Empty, Full
    import time
 
    from polymer.Polymer import ControllerQueue, TaskMgr
@@ -37,7 +35,6 @@ Usage
    class Controller(object):
       """Controller() builds a list of tasks, and queues them to the TaskMgr"""
       def __init__(self):
-          c_q = ControllerQueue()
 
           tasks = list()
           ## Build ten tasks... do *not* depend on execution order...
@@ -46,7 +43,7 @@ Usage
               tasks.append(SimpleTask(text="Task {0}".format(ii), wait=ii))
 
           args = {
-              'queue': c_q,
+              'queue': ControllerQueue(),
               'work_todo': tasks,
               'log_level': 0,
               'worker_count': 3,
