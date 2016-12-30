@@ -13,5 +13,15 @@ class BaseTask(object):
         self.worker_loop_delay = 0.00001   # Default 10us worker sleep delay 
 
     @abstractmethod
+    def __repr__(self):
+        pass
+
+    @abstractmethod
+    def __eq__(self):
+        """Define how tasks are uniquely identified"""
+        pass
+
+    @abstractmethod
     def run(self):
+        """Define what should be done"""
         pass
