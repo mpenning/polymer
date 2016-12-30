@@ -191,6 +191,7 @@ class TaskMgr(object):
                 self.log_level = 0
 
     def supervise(self):
+        """If not in a hot_loop, call supervise() to start the tasks"""
         retval = set([])
         stats = TaskMgrStats(worker_count=self.worker_count, 
             log_interval=self.log_interval)
@@ -240,11 +241,12 @@ class TaskMgr(object):
 
                     if not hot_loop:
                         retval.add(task)  # Add result to retval
+                        self.assignments.pop(w_id)  # Delete the key
                         finished = self.is_finished()
                     else:
                         self.controller.to_q.put(task)  # Send to the controller
+                        self.assignments.pop(w_id)  # Delete the key
 
-                    del self.assignments[w_id]
 
                 elif state=='__ERROR__':
                     if self.log_level>=1:
