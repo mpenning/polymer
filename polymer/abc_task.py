@@ -1,4 +1,4 @@
-from abc import ABCMeta
+from abc import ABCMeta, abstractmethod
 import time
 
 class BaseTask(object):
@@ -12,5 +12,6 @@ class BaseTask(object):
 
         self.worker_loop_delay = 0.00001   # Default 10us worker sleep delay 
 
+    @abstractmethod
     def run(self):
-        raise NotImplementedError
+        pass
