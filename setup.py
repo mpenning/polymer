@@ -11,11 +11,11 @@ def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
 
 setup(name='polymer',
-      version="0.0.3",
+      version="0.0.4",
       description='Polymer',
       url='http://github.com/mpenning/polymer',
       author='David Michael Pennington',
-      author_email='mike /|at|\ pennington.net',
+      author_email='mike@pennington.net',
       license='GPL',
       platforms='any',
       keywords='',
@@ -27,7 +27,7 @@ setup(name='polymer',
       zip_safe=False,
       setup_requires=["setuptools_hg"],  # setuptools_hg must be installed as a python module
       classifiers=[
-          'Development Status :: 3 - Alpha',
+          'Development Status :: 3 - Beta',
           'Environment :: Plugins',
           'Intended Audience :: Developers',
           'Intended Audience :: System Administrators',
