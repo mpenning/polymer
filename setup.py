@@ -25,7 +25,7 @@ setup(name='polymer',
       packages=find_packages(),
       use_2to3=True,
       zip_safe=False,
-      install_requires = ["billiard"]
+      install_requires = ["billiard"],
       setup_requires=["setuptools_hg"],  # setuptools_hg must be installed as a python module
       classifiers=[
           'Development Status :: 4 - Beta',
