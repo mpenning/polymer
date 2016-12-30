@@ -1,7 +1,7 @@
 
 from logging.handlers import TimedRotatingFileHandler
 from logging.handlers import MemoryHandler
-from multiprocessing import Process, Queue
+from billiard import Process, Queue
 from Queue import Empty, Full
 from copy import deepcopy
 import traceback as tb
@@ -10,7 +10,7 @@ import time
 import sys
 
 """ Polymer.py - Manage parallel tasks
-     Copyright (C) 2015 David Michael Pennington
+     Copyright (C) 2015-2016 David Michael Pennington
 
      This program is free software: you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published by
