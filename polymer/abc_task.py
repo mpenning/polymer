@@ -1,5 +1,4 @@
 from abc import ABCMeta, abstractmethod
-import time
 
 class BaseTask(object):
     __metaclass__ = ABCMeta
