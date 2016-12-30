@@ -27,7 +27,7 @@ setup(name='polymer',
       zip_safe=False,
       setup_requires=["setuptools_hg"],  # setuptools_hg must be installed as a python module
       classifiers=[
-          'Development Status :: 3 - Beta',
+          'Development Status :: 4 - Beta',
           'Environment :: Plugins',
           'Intended Audience :: Developers',
           'Intended Audience :: System Administrators',
