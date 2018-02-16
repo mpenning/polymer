@@ -101,12 +101,13 @@ class Worker(object):
         return
 
 class TaskMgrStats(object):
-    def __init__(self, worker_count, log_interval=60):
+    def __init__(self, worker_count, log_interval=60, hot_loop=False):
         self.log_interval = log_interval
         self.stats_start = time.time()
         self.exec_times   = list()    # Archive of all exec times
         self.queue_times  = list()    # Archive of all queue times
         self.worker_count = worker_count
+        self.hot_loop = hot_loop
 
     def reset(self):
         self.stats_start = time.time()
@@ -125,7 +126,7 @@ class TaskMgrStats(object):
     @property
     def log_time(self):
         """Return True if it's time to log"""
-        if self.time_delta>=self.log_interval:
+        if self.hot_loop and self.time_delta>=self.log_interval:
             return True
         return False
 
@@ -218,7 +219,7 @@ class TaskMgr(object):
         """If not in a hot_loop, call supervise() to start the tasks"""
         self.retval = set([])
         stats = TaskMgrStats(worker_count=self.worker_count, 
-            log_interval=self.log_interval)
+            log_interval=self.log_interval, hot_loop=self.hot_loop)
 
         hot_loop = self.hot_loop
         if self.log_level>=2:
@@ -318,7 +319,7 @@ class TaskMgr(object):
                 raise e(tb_str)
 
             if stats.log_time:
-                if self.log_level>=2:
+                if self.log_level>=0:
                     self.log.info(stats.log_message)
 
             # Adaptive loop delay
