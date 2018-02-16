@@ -88,10 +88,15 @@ class Worker(object):
             except Full:
                 time.sleep(0.1)
             ## Disable extraneous error handling...
-            #except Exception as e:
+            except:
+                if self.task is not None:
+                    self.task.task_stop = time.time()  # Seconds since epoch
                 # Handle all other errors here...
-            #    tb_str = ''.join(tb.format_exception(*(sys.exc_info())))
-            #    raise e
+                tb_str = ''.join(tb.format_exception(*(sys.exc_info())))
+                r_q.put({'w_id': self.w_id, 
+                    'task': self.task,
+                    'error': tb_str,
+                    'state': '__ERROR__'})
 
         return
 
