@@ -283,6 +283,8 @@ class TaskMgr(object):
                     if self.log_level>=1:
                         self.log.error("r_msg: {0}".format(r_msg))
                         self.log.error(''.join(r_msg.get('error')))
+                        self.log.debug("TaskMgr.work_todo: {0}".format(
+                            self.work_todo))
                         self.log.debug("TaskMgr.work_todo: {0} tasks left".format(
                             len(self.work_todo)))
 
@@ -377,13 +379,15 @@ class TaskMgr(object):
                 task = self.assignments.get(w_id, {})
                 if task!={}:
                     del self.assignments[w_id]
-                    self.work_todo.append(task)
-                    self.queue_task(task)
+                    if self.resubmit_on_error or self.hot_loop:
+                        self.work_todo.append(task)
+                        self.queue_task(task)
                 if self.log_level>=1:
                     self.log.debug("TaskMgr.work_todo: {0} tasks left".format(
                             len(self.work_todo)))
                 if self.log_level>=2:
-                    self.log.info("Respawning w_id={0}".format(w_id))
+                    self.log.info("Respawning w_id={0} with task={1}".format(
+                        w_id, task))
                 self.workers[w_id] = Process(target=Worker, 
                     args=(w_id, self.t_q, self.r_q, self.worker_cycle_sleep))
                 self.workers[w_id].start()
