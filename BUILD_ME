@@ -1,5 +1,3 @@
-hg commit ...
-python setup.py sdist; python setup.py register; python setup.py sdist upload
 ## Clean up repo after build
 rm -rf polymer/*pyc; rm -rf dist/ polymer.egg-info/ setuptools*
 rm -rf polymer/polymer.egg-info/
@@ -7,5 +5,7 @@ rm -rf .eggs/
 hg bookmark -f master
 ## On my system, with ~/.pypirc
 # Push to github
-hg push git+ssh://git@github.com:mpenning/polymer.git
+git push
+# PYPI push...
+python setup.py bdist_wheel sdist upload
 
