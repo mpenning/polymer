@@ -21,6 +21,8 @@ Usage
 
       def run(self):
           """run() is where all the work is done; this is called by TaskMgr()"""
+          ## WARNING... using try / except in run() could squash Polymer's
+          ##      internal error logging...
           time.sleep(float(self.wait/10))
           print self.text
 
