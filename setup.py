@@ -11,7 +11,7 @@ def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
 
 setup(name='polymer',
-      version="0.0.7",
+      version="0.0.8",
       description='Polymer',
       url='http://github.com/mpenning/polymer',
       author='David Michael Pennington',
