@@ -279,15 +279,14 @@ class TaskMgr(object):
 
                 elif state=='__ERROR__':
 
-                    #self.respawn_dead_workers()
-
                     if self.log_level>=1:
                         self.log.error("r_msg: {0}".format(r_msg))
                         self.log.error(''.join(r_msg.get('error')))
-                        self.log.debug("TaskMgr.work_todo: {0}".format(
-                            self.work_todo))
                         self.log.debug("TaskMgr.work_todo: {0} tasks left".format(
                             len(self.work_todo)))
+                    if self.log_level>=3:
+                        self.log.debug("TaskMgr.work_todo: {0}".format(
+                            self.work_todo))
 
 
                     if not hot_loop:
@@ -303,6 +302,8 @@ class TaskMgr(object):
                             except:
                                 pass
                             self.retval.add(task)        # Add result to retval
+
+                    self.respawn_dead_workers()
 
             except Empty:
                 state = '__EMPTY__'
@@ -376,19 +377,21 @@ class TaskMgr(object):
     def respawn_dead_workers(self):
         for w_id, p in self.workers.items():
             if not p.is_alive():
-                # Queue the task for another worker
+                # Queue the task for another worker, if required...
                 task = self.assignments.get(w_id, {})
+                error_suffix = ""
                 if task!={}:
                     del self.assignments[w_id]
                     if self.resubmit_on_error or self.hot_loop:
                         self.work_todo.append(task)
                         self.queue_task(task)
+                        error_suffix = " with task={1}".format(task)
                 if self.log_level>=1:
                     self.log.debug("TaskMgr.work_todo: {0} tasks left".format(
                             len(self.work_todo)))
                 if self.log_level>=2:
-                    self.log.info("Respawning w_id={0} with task={1}".format(
-                        w_id, task))
+                    self.log.info("Respawning worker - w_id={0}{1}".format(
+                        w_id, error_suffix))
                 self.workers[w_id] = Process(target=Worker, 
                     args=(w_id, self.t_q, self.r_q, self.worker_cycle_sleep))
                 self.workers[w_id].start()
