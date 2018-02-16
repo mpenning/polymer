@@ -37,15 +37,23 @@ class Worker(object):
         self.w_id = w_id
         self.cycle_sleep = default_sleep      # How long the worker should sleep
         self.task = None
+
+
         try:
-            self.ready(t_q, r_q)  # Get the worker ready to do work
-        except:
-            self.task = None
+            self.ready(t_q, r_q)  # Get the worker ready to do work, and run it
+        except Exception as e:
+            self.task.task_stop = time.time()  # Seconds since epoch
+
             tb_str = ''.join(tb.format_exception(*(sys.exc_info())))
             r_q.put({'w_id': self.w_id, 
                 'task': self.task,
                 'error': tb_str,
                 'state': '__ERROR__'})
+
+            #self.cycle_sleep = self.task.worker_loop_delay
+            #time.sleep(self.cycle_sleep)
+            self.task = None
+
 
     def ready(self, t_q, r_q):
         t_msg = {}
@@ -54,8 +62,8 @@ class Worker(object):
                 t_msg = t_q.get(True, self.cycle_sleep)  # Poll blocking
                 self.task = t_msg.get('task', '')        # __DIE__ has no task
                 if self.task!='':
-                    self.task.task_start = time.time()   # Start the timer
 
+                    self.task.task_start = time.time()   # Start the timer
                     # Send ACK to the controller who requested work on this task
                     r_q.put({'w_id': self.w_id, 
                         'task': self.task,
@@ -77,6 +85,11 @@ class Worker(object):
                 pass
             except Full:
                 time.sleep(0.1)
+            except Exception as e:
+                # Handle all other errors here...
+                tb_str = ''.join(tb.format_exception(*(sys.exc_info())))
+                raise e
+
         return
 
 class TaskMgrStats(object):
@@ -142,7 +155,8 @@ class TaskMgr(object):
     # http://www.jeffknupp.com/blog/2014/02/11/a-celerylike-python-task-queue-in-55-lines-of-code/
     def __init__(self, work_todo=None, log_level=3, log_stdout=True, 
         log_path='taskmgr.log', queue=None, hot_loop=False, 
-        worker_count=5, log_interval=60, worker_cycle_sleep=0.000001):
+        worker_count=5, log_interval=60, worker_cycle_sleep=0.000001,
+        resubmit_on_error=False):
         if work_todo is None:
             work_todo = list()
         assert isinstance(work_todo, list), "Please add work in a python list"
@@ -154,6 +168,7 @@ class TaskMgr(object):
         self.log_stdout = log_stdout
         self.log_path = log_path
         self.log_interval = log_interval
+        self.resubmit_on_error = resubmit_on_error
 
         self.t_q   = Queue()           # workers listen to t_q (task queue)
         self.r_q   = Queue()           # results queue
@@ -161,6 +176,7 @@ class TaskMgr(object):
         self.results = dict()
         self.configure_logging()
         self.hot_loop = hot_loop
+        self.retval = set([])
 
         if hot_loop:
             assert isinstance(queue, ControllerQueue)
@@ -192,7 +208,7 @@ class TaskMgr(object):
 
     def supervise(self):
         """If not in a hot_loop, call supervise() to start the tasks"""
-        retval = set([])
+        self.retval = set([])
         stats = TaskMgrStats(worker_count=self.worker_count, 
             log_interval=self.log_interval)
 
@@ -203,9 +219,18 @@ class TaskMgr(object):
         self.workers = self.spawn_workers()
 
         ## Add work
+        self.num_tasks = 0
         if not hot_loop:
+            if self.log_level>=2:
+                logmsg = "TaskMgr.supervise() received {0} tasks".format(len(self.work_todo))
+                self.log.info(logmsg)
             for task in self.work_todo:
+                self.num_tasks += 1
+                if self.log_level>=2:
+                    logmsg = "TaskMgr.supervise() queued task: {0}".format(task)
+                    self.log.info(logmsg)
                 self.queue_task(task)
+
 
         finished = False
         while not finished:
@@ -215,7 +240,6 @@ class TaskMgr(object):
                     delay = self.calc_wait_time(stats.exec_times)
                     self.queue_tasks_from_controller(delay=delay)  # queue tasks
                     time.sleep(delay)
-
 
                 r_msg = self.r_q.get_nowait()     # __ACK__ or __FINISHED__
                 task = r_msg.get('task')
@@ -240,20 +264,36 @@ class TaskMgr(object):
                         self.log.debug("r_msg: {0}".format(r_msg))
 
                     if not hot_loop:
-                        retval.add(task)  # Add result to retval
+                        self.retval.add(task)  # Add result to retval
                         self.assignments.pop(w_id)  # Delete the key
                         finished = self.is_finished()
                     else:
                         self.controller.to_q.put(task)  # Send to the controller
                         self.assignments.pop(w_id)  # Delete the key
 
-
                 elif state=='__ERROR__':
+
+                    #self.respawn_dead_workers()
+
                     if self.log_level>=1:
                         self.log.error("r_msg: {0}".format(r_msg))
                         self.log.error(''.join(r_msg.get('error')))
+
+
+                    if not hot_loop:
+                        if not self.resubmit_on_error:
+                            self.retval.add(task)  # Add result to retval
+                            try:
+                                self.assignments.pop(w_id)  # Delete the key
+                            except:
+                                pass
+
             except Empty:
                 state = '__EMPTY__'
+            except Exception as e:
+                tb_str = ''.join(tb.format_exception(*(sys.exc_info())))
+                raise e(tb_str)
+
 
             if stats.log_time:
                 if self.log_level>=2:
@@ -264,12 +304,14 @@ class TaskMgr(object):
             time.sleep(delay)
 
             self.respawn_dead_workers()
+            finished = self.is_finished()
+
 
         if not hot_loop:
             self.kill_workers()
             for w_id, p in self.workers.items():
                 p.join()
-            return retval
+            return self.retval
 
     def calc_wait_time(self, exec_times):
         num_samples = float(len(exec_times))
@@ -279,6 +321,7 @@ class TaskMgr(object):
             wait_time = min_task_time/queue_size
         else:
             wait_time = 0.00001   # 10us delay to avoid worker / r_q race 
+
         return wait_time
 
     def queue_tasks_from_controller(self, delay=0.0):
@@ -304,6 +347,9 @@ class TaskMgr(object):
 
     def is_finished(self):
         if (len(self.work_todo)==0) and (len(self.assignments.keys())==0):
+            return True
+        elif not self.hot_loop and (len(self.retval))==self.num_tasks:
+            # We need this exit condition due to __ERROR__ race conditions...
             return True
         return False
 
