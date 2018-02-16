@@ -260,7 +260,12 @@ class TaskMgr(object):
                     stats.exec_times.append(task_exec_time)
                     stats.queue_times.append(task_queue_time)
 
-                    if self.log_level>=3:
+                    if self.log_level>=1:
+                        self.log.debug("TaskMgr.work_todo: {0} tasks left".format(
+                            len(self.work_todo)))
+                    elif self.log_level>=3:
+                        self.log.debug("TaskMgr.work_todo: {0}".format(
+                            self.work_todo))
                         self.log.debug("r_msg: {0}".format(r_msg))
 
                     if not hot_loop:
@@ -278,15 +283,18 @@ class TaskMgr(object):
                     if self.log_level>=1:
                         self.log.error("r_msg: {0}".format(r_msg))
                         self.log.error(''.join(r_msg.get('error')))
+                        self.log.debug("TaskMgr.work_todo: {0} tasks left".format(
+                            len(self.work_todo)))
 
 
                     if not hot_loop:
                         if not self.resubmit_on_error:
-                            self.retval.add(task)  # Add result to retval
                             try:
+                                self.work_todo.remove(task) # Remove task...
                                 self.assignments.pop(w_id)  # Delete the key
                             except:
                                 pass
+                            self.retval.add(task)        # Add result to retval
 
             except Empty:
                 state = '__EMPTY__'
