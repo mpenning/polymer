@@ -180,7 +180,7 @@ class TaskMgr(object):
 
         self.t_q   = Queue()           # workers listen to t_q (task queue)
         self.r_q   = Queue()           # results queue
-        self.assignments = dict()      # key: w_id, value: worker Process objs
+        self.worker_assignments = dict()      # key: w_id, value: worker Process objs
         self.results = dict()
         self.configure_logging()
         self.hot_loop = hot_loop
@@ -254,7 +254,7 @@ class TaskMgr(object):
                 w_id = r_msg.get('w_id')
                 state = r_msg.get('state', '')
                 if state=='__ACK__':
-                    self.assignments[w_id] = task
+                    self.worker_assignments[w_id] = task
                     self.work_todo.remove(task)
                     if self.log_level>=3:
                         self.log.debug("r_msg: {0}".format(r_msg))
@@ -278,11 +278,11 @@ class TaskMgr(object):
 
                     if not hot_loop:
                         self.retval.add(task)  # Add result to retval
-                        self.assignments.pop(w_id)  # Delete the key
+                        self.worker_assignments.pop(w_id)  # Delete the key
                         finished = self.is_finished()
                     else:
                         self.controller.to_q.put(task)  # Send to the controller
-                        self.assignments.pop(w_id)  # Delete the key
+                        self.worker_assignments.pop(w_id)  # Delete the key
 
                 elif state=='__ERROR__':
 
@@ -297,14 +297,14 @@ class TaskMgr(object):
 
                     if not hot_loop:
                         if not self.resubmit_on_error:
+                            # If task is in work_todo, delete it
+                            for tt in self.work_todo:
+                                if tt==task:
+                                    self.work_todo.remove(task) # Remove task...
+
                             try:
-                                self.work_todo.remove(task) # Remove task...
-                            except:
-                                msg = "Could not remove {0} on error".format(
-                                    task)
-                                self.log.error(msg)
-                            try:
-                                self.assignments.pop(w_id)  # Delete the key
+                                # Delete the worker assignment...
+                                self.worker_assignments.pop(w_id)
                             except:
                                 pass
                             self.retval.add(task)        # Add result to retval
@@ -316,7 +316,6 @@ class TaskMgr(object):
             except Exception as e:
                 tb_str = ''.join(tb.format_exception(*(sys.exc_info())))
                 raise e(tb_str)
-
 
             if stats.log_time:
                 if self.log_level>=2:
@@ -334,6 +333,9 @@ class TaskMgr(object):
             self.kill_workers()
             for w_id, p in self.workers.items():
                 p.join()
+
+            ## Log a final stats summary...
+            self.log.info(stats.log_message)
             return self.retval
 
     def calc_wait_time(self, exec_times):
@@ -369,7 +371,7 @@ class TaskMgr(object):
         self.t_q.put({'task': task})
 
     def is_finished(self):
-        if (len(self.work_todo)==0) and (len(self.assignments.keys())==0):
+        if (len(self.work_todo)==0) and (len(self.worker_assignments.keys())==0):
             return True
         elif not self.hot_loop and (len(self.retval))==self.num_tasks:
             # We need this exit condition due to __ERROR__ race conditions...
@@ -387,10 +389,10 @@ class TaskMgr(object):
                 # Queue the task for another worker, if required...
                 if self.log_level>=2:
                     self.log.info("Worker w_id {0} died".format(w_id))
-                task = self.assignments.get(w_id, {})
+                task = self.worker_assignments.get(w_id, {})
                 error_suffix = ""
                 if task!={}:
-                    del self.assignments[w_id]
+                    del self.worker_assignments[w_id]
                     if self.resubmit_on_error or self.hot_loop:
                         self.work_todo.append(task)
                         self.queue_task(task)
