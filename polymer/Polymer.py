@@ -38,12 +38,13 @@ class Worker(object):
         self.cycle_sleep = default_sleep      # How long the worker should sleep
         self.task = None
 
-
         try:
-            self.ready(t_q, r_q)  # Get the worker ready to do work, and run it
-        except Exception as e:
-            self.task.task_stop = time.time()  # Seconds since epoch
+            self.message_loop(t_q, r_q)  # do work
+        except:
+            if self.task is not None:
+                self.task.task_stop = time.time()  # Seconds since epoch
 
+            ## Format and return the error
             tb_str = ''.join(tb.format_exception(*(sys.exc_info())))
             r_q.put({'w_id': self.w_id, 
                 'task': self.task,
@@ -55,7 +56,8 @@ class Worker(object):
             self.task = None
 
 
-    def ready(self, t_q, r_q):
+    def message_loop(self, t_q, r_q):
+        """Loop through messages and execute tasks"""
         t_msg = {}
         while (t_msg.get('state', '')!='__DIE__'):
             try:
@@ -288,7 +290,6 @@ class TaskMgr(object):
                         self.log.debug("TaskMgr.work_todo: {0}".format(
                             self.work_todo))
 
-
                     if not hot_loop:
                         if not self.resubmit_on_error:
                             try:
@@ -355,8 +356,8 @@ class TaskMgr(object):
             except Empty:
                 # Poll until empty
                 finished = True
-            except (Exception) as e:
-                tb.print_exc()
+            #except (Exception) as e:
+            #    tb.print_exc()
 
     def queue_task(self, task):
         task.queue_time = time.time()   # Record the queueing time
@@ -375,9 +376,12 @@ class TaskMgr(object):
         [self.t_q.put(stop) for x in xrange(0, self.worker_count)]
 
     def respawn_dead_workers(self):
+        """Respawn workers / tasks upon crash"""
         for w_id, p in self.workers.items():
             if not p.is_alive():
                 # Queue the task for another worker, if required...
+                if self.log_level>=2:
+                    self.log.info("Worker w_id {0} died".format(w_id))
                 task = self.assignments.get(w_id, {})
                 error_suffix = ""
                 if task!={}:
