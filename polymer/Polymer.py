@@ -85,10 +85,11 @@ class Worker(object):
                 pass
             except Full:
                 time.sleep(0.1)
-            except Exception as e:
+            ## Disable extraneous error handling...
+            #except Exception as e:
                 # Handle all other errors here...
-                tb_str = ''.join(tb.format_exception(*(sys.exc_info())))
-                raise e
+            #    tb_str = ''.join(tb.format_exception(*(sys.exc_info())))
+            #    raise e
 
         return
 
