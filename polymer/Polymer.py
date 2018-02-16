@@ -263,7 +263,7 @@ class TaskMgr(object):
                     if self.log_level>=1:
                         self.log.debug("TaskMgr.work_todo: {0} tasks left".format(
                             len(self.work_todo)))
-                    elif self.log_level>=3:
+                    if self.log_level>=3:
                         self.log.debug("TaskMgr.work_todo: {0}".format(
                             self.work_todo))
                         self.log.debug("r_msg: {0}".format(r_msg))
@@ -291,6 +291,11 @@ class TaskMgr(object):
                         if not self.resubmit_on_error:
                             try:
                                 self.work_todo.remove(task) # Remove task...
+                            except:
+                                msg = "Could not remove {0} on error".format(
+                                    task)
+                                self.log.error(msg)
+                            try:
                                 self.assignments.pop(w_id)  # Delete the key
                             except:
                                 pass
@@ -374,6 +379,9 @@ class TaskMgr(object):
                     del self.assignments[w_id]
                     self.work_todo.append(task)
                     self.queue_task(task)
+                if self.log_level>=1:
+                    self.log.debug("TaskMgr.work_todo: {0} tasks left".format(
+                            len(self.work_todo)))
                 if self.log_level>=2:
                     self.log.info("Respawning w_id={0}".format(w_id))
                 self.workers[w_id] = Process(target=Worker, 
