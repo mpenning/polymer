@@ -287,6 +287,12 @@ class TaskMgr(object):
 
                 elif state=='__ERROR__':
 
+                    now = time.time()
+                    task_exec_time = task.task_stop - task.task_start
+                    task_queue_time = now - task.queue_time - task_exec_time
+                    stats.exec_times.append(task_exec_time)
+                    stats.queue_times.append(task_queue_time)
+
                     if self.log_level>=1:
                         self.log.error("r_msg: {0}".format(r_msg))
                         self.log.error(''.join(r_msg.get('error')))
