@@ -1,5 +1,5 @@
 ## Clean up repo after build
-rm -rf polymer/*pyc; rm -rf dist/ polymer.egg-info/ setuptools*
+rm -rf polymer/*pyc; rm -rf dist/ build/ polymer.egg-info/ setuptools*
 rm -rf polymer/polymer.egg-info/
 rm -rf .eggs/
 hg bookmark -f master
