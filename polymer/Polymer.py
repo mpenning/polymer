@@ -342,7 +342,8 @@ class TaskMgr(object):
                 p.join()
 
             ## Log a final stats summary...
-            self.log.info(stats.log_message)
+            if self.log_level > 0:
+                self.log.info(stats.log_message)
             return self.retval
 
     def calc_wait_time(self, exec_times):
@@ -412,6 +413,7 @@ class TaskMgr(object):
                         w_id, error_suffix))
                 self.workers[w_id] = Process(target=Worker, 
                     args=(w_id, self.t_q, self.r_q, self.worker_cycle_sleep))
+                self.workers[w_id].daemon = True
                 self.workers[w_id].start()
 
     def spawn_workers(self):
@@ -420,6 +422,7 @@ class TaskMgr(object):
             workers[w_id] = Process(target=Worker, 
                 name="Polymer.py Worker {0}".format(w_id), 
                 args=(w_id, self.t_q, self.r_q, self.worker_cycle_sleep))
+            workers[w_id].daemon = True
             workers[w_id].start()
         return workers
 
