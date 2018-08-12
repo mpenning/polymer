@@ -46,10 +46,20 @@ class Worker(object):
 
             ## Format and return the error
             tb_str = ''.join(tb.format_exception(*(sys.exc_info())))
-            r_q.put({'w_id': self.w_id, 
-                'task': self.task,
-                'error': tb_str,
-                'state': '__ERROR__'})
+            try:
+                r_q.put({'w_id': self.w_id, 
+                    'task': self.task,
+                    'error': tb_str,
+                    'state': '__ERROR__'})
+            except:
+                ### If there is any error putting into the 
+                ###    results queue (like pickling), kill the worker.
+                ###    If it's a temporary error, the job can 
+                ###    be resubmitted and try again.
+                sys.stderr.write("{0} Worker: {1} died returning results: {2}\n".format(
+                    datetime.now(), w_id, tb_str)
+                sys.stderr.write("    TaskMgr resubmit_on_error may help\n")
+                sys.exit(1)
 
             #self.cycle_sleep = self.task.worker_loop_delay
             #time.sleep(self.cycle_sleep)
@@ -103,8 +113,9 @@ class Worker(object):
                     ###    results queue (like pickling), kill the worker.
                     ###    If it's a temporary error, the job can 
                     ###    be resubmitted and try again.
-                    print "Worker: {0} died returning results: {1}".format(
-                        w_id, tb_str)
+                    sys.stderr.write("{0} Worker: {1} died returning results: {2}\n".format(
+                        datetime.now(), w_id, tb_str)
+                    sys.stderr.write("    TaskMgr resubmit_on_error may help\n")
                     sys.exit(1)
 
         return
