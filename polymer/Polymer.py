@@ -93,10 +93,19 @@ class Worker(object):
                     self.task.task_stop = time.time()  # Seconds since epoch
                 # Handle all other errors here...
                 tb_str = ''.join(tb.format_exception(*(sys.exc_info())))
-                r_q.put({'w_id': self.w_id, 
-                    'task': self.task,
-                    'error': tb_str,
-                    'state': '__ERROR__'})
+                try:
+                    r_q.put({'w_id': self.w_id, 
+                        'task': self.task,
+                        'error': tb_str,
+                        'state': '__ERROR__'})
+                except:
+                    ### If there is any error putting into the 
+                    ###    results queue (like pickling), kill the worker.
+                    ###    If it's a temporary error, the job can 
+                    ###    be resubmitted and try again.
+                    print "Worker: {0} died returning results: {1}".format(
+                        w_id, tb_str)
+                    sys.exit(1)
 
         return
 
