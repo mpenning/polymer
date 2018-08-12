@@ -7,7 +7,7 @@ from copy import deepcopy
 from hashlib import md5
 import traceback as tb
 import logging
-import pickle
+import cPickle as pickle
 import time
 import sys
 import os
@@ -166,10 +166,17 @@ class Worker(object):
         keys.  Return the list of keys, if there are problems."""
         no_pickle_keys = list()
         for key, val in msg_dict.items():
+
             try:
+                pickle.dumps(key)
                 pickle.dumps(val)
             except TypeError:
                 no_pickle_keys.append(key)  # This key has an unpicklable value
+            except pickle.PicklingError:
+                no_pickle_keys.append(key)  # This key has an unpicklable value
+            except pickle.UnpickleableError:
+                no_pickle_keys.append(key)  # This key has an unpicklable value
+
         return no_pickle_keys
 
     def invalid_obj_pickle_attrs(self, thisobj):
@@ -178,6 +185,10 @@ class Worker(object):
             try:
                 pickle.dumps(getattr(thisobj, attr))
             except TypeError:
+                no_pickle_attrs.append(attr)  # This attr is unpicklable
+            except pickle.PicklingError:
+                no_pickle_attrs.append(attr)  # This attr is unpicklable
+            except pickle.UnpickleableError:
                 no_pickle_attrs.append(attr)  # This attr is unpicklable
         return no_pickle_attrs
 
@@ -691,8 +702,13 @@ class TaskMgr(object):
         no_pickle_keys = list()
         for key, val in msg_dict.items():
             try:
+                pickle.dumps(key)
                 pickle.dumps(val)
             except TypeError:
+                no_pickle_keys.append(key)  # This key has an unpicklable value
+            except pickle.PicklingError:
+                no_pickle_keys.append(key)  # This key has an unpicklable value
+            except pickle.UnpickleableError:
                 no_pickle_keys.append(key)  # This key has an unpicklable value
         return no_pickle_keys
 
@@ -702,6 +718,10 @@ class TaskMgr(object):
             try:
                 pickle.dumps(getattr(thisobj, attr))
             except TypeError:
+                no_pickle_attrs.append(attr)  # This attr is unpicklable
+            except pickle.PicklingError:
+                no_pickle_attrs.append(attr)  # This attr is unpicklable
+            except pickle.UnpickleableError:
                 no_pickle_attrs.append(attr)  # This attr is unpicklable
         return no_pickle_attrs
 
