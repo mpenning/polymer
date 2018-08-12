@@ -1,13 +1,20 @@
 
 from logging.handlers import TimedRotatingFileHandler
 from logging.handlers import MemoryHandler
-from billiard import Process, Queue
 from Queue import Empty, Full
+from datetime import datetime
 from copy import deepcopy
+from hashlib import md5
 import traceback as tb
 import logging
+import pickle
 import time
 import sys
+import os
+
+from colorama import init as color_init
+from colorama import Fore, Style
+from billiard import Process, Queue
 
 """ Polymer.py - Manage parallel tasks
      Copyright (C) 2015-2018 David Michael Pennington
@@ -34,9 +41,11 @@ class Worker(object):
     def __init__(self, w_id, t_q, r_q, default_sleep=0.00001):
         assert isinstance(default_sleep, int) or isinstance(default_sleep, 
             float)
+        color_init()
         self.w_id = w_id
         self.cycle_sleep = default_sleep      # How long the worker should sleep
         self.task = None
+        self.r_q = r_q
 
         try:
             self.message_loop(t_q, r_q)  # do work
@@ -46,24 +55,86 @@ class Worker(object):
 
             ## Format and return the error
             tb_str = ''.join(tb.format_exception(*(sys.exc_info())))
-            try:
-                r_q.put({'w_id': self.w_id, 
-                    'task': self.task,
-                    'error': tb_str,
-                    'state': '__ERROR__'})
-            except:
-                ### If there is any error putting into the 
-                ###    results queue (like pickling), kill the worker.
-                ###    If it's a temporary error, the job can 
-                ###    be resubmitted and try again.
-                sys.stderr.write("{0} Worker: {1} died returning results: {2}\n".format(
-                    datetime.now(), w_id, tb_str))
-                sys.stderr.write("    TaskMgr resubmit_on_error may help\n")
-                sys.exit(1)
+            self.r_q_send({'w_id': self.w_id, 
+                'task': self.task,
+                'error': tb_str,
+                'state': '__ERROR__'})
 
             #self.cycle_sleep = self.task.worker_loop_delay
             #time.sleep(self.cycle_sleep)
             self.task = None
+
+    def r_q_send(self, msg_dict):
+        """Send message dicts through r_q, and throw explicit errors for 
+        pickle problems"""
+
+        # Check whether msg_dict can be pickled...
+        no_pickle_keys = self.invalid_dict_pickle_keys(msg_dict)
+
+        if no_pickle_keys==[]:
+            self.r_q.put(msg_dict)
+
+        else:
+            ## Explicit pickle error handling
+            hash_func = md5()
+            hash_func.update(str(msg_dict))
+            dict_hash = str(hash_func.hexdigest())[-7:]  # Last 7 digits of hash
+            linesep = os.linesep
+            sys.stderr.write("{0} {1}r_q_send({2}) Can't pickle this dict:{3} '''{7}{4}   {5}{7}{6}''' {7}".format(
+                datetime.now(), Style.BRIGHT, dict_hash, Style.RESET_ALL, 
+                Fore.MAGENTA, msg_dict, Style.RESET_ALL, linesep))
+
+
+            ## Verbose list of the offending key(s) / object attrs
+            ## Send all output to stderr...
+            err_frag1 = Style.BRIGHT+"    r_q_send({0}) Offending keys:".format(
+                dict_hash)+Style.RESET_ALL
+            err_frag2 = Fore.YELLOW+" {0}".format(no_pickle_keys)+Style.RESET_ALL
+            err_frag3 = "{0}".format(linesep)
+            sys.stderr.write(err_frag1+err_frag2+err_frag3)
+            for key in sorted(no_pickle_keys):
+                sys.stderr.write("      msg_dict['{0}']: {1}'{2}'{3}{4}".format(
+                    key, Fore.MAGENTA, repr(msg_dict.get(key)), Style.RESET_ALL,
+                    linesep))
+                if isinstance(msg_dict.get(key), object):
+                    thisobj = msg_dict.get(key)
+                    no_pickle_attrs = self.invalid_obj_pickle_attrs(thisobj)
+                    err_frag1 = Style.BRIGHT+"      r_q_send({0}) Offending attrs:".format(dict_hash)+Style.RESET_ALL
+                    err_frag2 = Fore.YELLOW+" {0}".format(no_pickle_attrs)+Style.RESET_ALL
+                    err_frag3 = "{0}".format(linesep)
+                    sys.stderr.write(err_frag1+err_frag2+err_frag3)
+                    for attr in no_pickle_attrs:
+                        sys.stderr.write("        msg_dict['{0}'].{1}: {2}'{3}'{4}{5}".format(
+                            key, attr, Fore.RED, repr(getattr(thisobj, attr)), 
+                            Style.RESET_ALL, linesep))
+
+            sys.stderr.write("    {0}r_q_send({1}) keys (no problems):{2}{3}".format(
+                Style.BRIGHT, dict_hash, Style.RESET_ALL, linesep))
+            for key in sorted(set(msg_dict.keys()).difference(no_pickle_keys)):
+                sys.stderr.write("      msg_dict['{0}']: {1}{2}{3}{4}".format(
+                    key, Fore.GREEN, repr(msg_dict.get(key)), Style.RESET_ALL, 
+                    linesep))
+
+    def invalid_dict_pickle_keys(self, msg_dict):
+        """Return a list of keys that can't be pickled.  Return [] if 
+        there are no pickling problems with the values associated with the
+        keys.  Return the list of keys, if there are problems."""
+        no_pickle_keys = list()
+        for key, val in msg_dict.items():
+            try:
+                pickle.dumps(val)
+            except TypeError:
+                no_pickle_keys.append(key)  # This key has an unpicklable value
+        return no_pickle_keys
+
+    def invalid_obj_pickle_attrs(self, thisobj):
+        no_pickle_attrs = list()
+        for attr, val in vars(thisobj).items():
+            try:
+                pickle.dumps(getattr(thisobj, attr))
+            except TypeError:
+                no_pickle_attrs.append(attr)  # This attr is unpicklable
+        return no_pickle_attrs
 
 
     def message_loop(self, t_q, r_q):
@@ -77,7 +148,7 @@ class Worker(object):
 
                     self.task.task_start = time.time()   # Start the timer
                     # Send ACK to the controller who requested work on this task
-                    r_q.put({'w_id': self.w_id, 
+                    self.r_q_send({'w_id': self.w_id, 
                         'task': self.task,
                         'state': '__ACK__'})
 
@@ -88,7 +159,7 @@ class Worker(object):
                     self.task.result = self.task.run()
                     self.task.task_stop = time.time()  # Seconds since epoch
 
-                    r_q.put({'w_id': self.w_id, 
+                    self.r_q_send({'w_id': self.w_id, 
                         'task': self.task,
                         'state': '__FINISHED__'})  # Ack work finished
 
@@ -103,20 +174,10 @@ class Worker(object):
                     self.task.task_stop = time.time()  # Seconds since epoch
                 # Handle all other errors here...
                 tb_str = ''.join(tb.format_exception(*(sys.exc_info())))
-                try:
-                    r_q.put({'w_id': self.w_id, 
-                        'task': self.task,
-                        'error': tb_str,
-                        'state': '__ERROR__'})
-                except:
-                    ### If there is any error putting into the 
-                    ###    results queue (like pickling), kill the worker.
-                    ###    If it's a temporary error, the job can 
-                    ###    be resubmitted and try again.
-                    sys.stderr.write("{0} Worker: {1} died returning results: {2}\n".format(
-                        datetime.now(), w_id, tb_str))
-                    sys.stderr.write("    TaskMgr resubmit_on_error may help\n")
-                    sys.exit(1)
+                self.r_q_send({'w_id': self.w_id, 
+                    'task': self.task,
+                    'error': tb_str,
+                    'state': '__ERROR__'})
 
         return
 
@@ -206,6 +267,8 @@ class TaskMgr(object):
         self.configure_logging()
         self.hot_loop = hot_loop
         self.retval = set([])
+
+        color_init()
 
         if hot_loop:
             assert isinstance(queue, ControllerQueue)
