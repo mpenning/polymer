@@ -77,20 +77,7 @@ class Worker(object):
         no_pickle_keys = self.invalid_dict_pickle_keys(msg_dict)
 
         if no_pickle_keys == []:
-            try:
-                self.r_q.put(msg_dict)
-            except TypeError:
-                sys.stderr.write(
-                    "{0}{1} TypeError while adding{2}{3} {4} to r_q{5}{6}".format(
-                        Style.BRIGHT,
-                        str(datetime.now()),
-                        Style.RESET_ALL,
-                        Fore.MAGENTA,
-                        str(msg_dict),
-                        Style.RESET_ALL,
-                        os.linesep,
-                    )
-                )
+            self.r_q.put(msg_dict)
 
         else:
             ## Explicit pickle error handling
@@ -115,7 +102,7 @@ class Worker(object):
             ## Send all output to stderr...
             err_frag1 = (
                 Style.BRIGHT
-                + "    r_q_send({0}) Offending keys:".format(dict_hash)
+                + "    r_q_send({0}) Offending dict keys:".format(dict_hash)
                 + Style.RESET_ALL
             )
             err_frag2 = Fore.YELLOW + " {0}".format(no_pickle_keys) + Style.RESET_ALL
@@ -545,7 +532,7 @@ class TaskMgr(object):
 
     def queue_task(self, task):
         task.queue_time = time.time()  # Record the queueing time
-        self.t_q.put({"task": task})
+        self.t_q_send({"task": task})
 
     def is_finished(self):
         if (len(self.work_todo) == 0) and (len(self.worker_assignments.keys()) == 0):
@@ -557,7 +544,7 @@ class TaskMgr(object):
 
     def kill_workers(self):
         stop = {"state": "__DIE__"}
-        [self.t_q.put(stop) for x in xrange(0, self.worker_count)]
+        [self.t_q_send(stop) for x in xrange(0, self.worker_count)]
 
     def respawn_dead_workers(self):
         """Respawn workers / tasks upon crash"""
@@ -608,6 +595,114 @@ class TaskMgr(object):
             workers[w_id].daemon = True
             workers[w_id].start()
         return workers
+
+    def t_q_send(self, msg_dict):
+
+        # Check whether msg_dict can be pickled...
+        no_pickle_keys = self.invalid_dict_pickle_keys(msg_dict)
+
+        if no_pickle_keys==[]:
+            self.t_q.put(msg_dict)
+        else:
+            ## Explicit pickle error handling
+            hash_func = md5()
+            hash_func.update(str(msg_dict))
+            dict_hash = str(hash_func.hexdigest())[-7:]  # Last 7 digits of hash
+            linesep = os.linesep
+            sys.stderr.write(
+                "{0} {1}t_q_send({2}) Can't pickle this dict:{3} '''{7}{4}   {5}{7}{6}''' {7}".format(
+                    datetime.now(),
+                    Style.BRIGHT,
+                    dict_hash,
+                    Style.RESET_ALL,
+                    Fore.MAGENTA,
+                    msg_dict,
+                    Style.RESET_ALL,
+                    linesep,
+                )
+            )
+
+            ## Verbose list of the offending key(s) / object attrs
+            ## Send all output to stderr...
+            err_frag1 = (
+                Style.BRIGHT
+                + "    t_q_send({0}) Offending dict keys:".format(dict_hash)
+                + Style.RESET_ALL
+            )
+            err_frag2 = Fore.YELLOW + " {0}".format(no_pickle_keys) + Style.RESET_ALL
+            err_frag3 = "{0}".format(linesep)
+            sys.stderr.write(err_frag1 + err_frag2 + err_frag3)
+            for key in sorted(no_pickle_keys):
+                sys.stderr.write(
+                    "      msg_dict['{0}']: {1}'{2}'{3}{4}".format(
+                        key,
+                        Fore.MAGENTA,
+                        repr(msg_dict.get(key)),
+                        Style.RESET_ALL,
+                        linesep,
+                    )
+                )
+                if isinstance(msg_dict.get(key), object):
+                    thisobj = msg_dict.get(key)
+                    no_pickle_attrs = self.invalid_obj_pickle_attrs(thisobj)
+                    err_frag1 = (
+                        Style.BRIGHT
+                        + "      t_q_send({0}) Offending attrs:".format(dict_hash)
+                        + Style.RESET_ALL
+                    )
+                    err_frag2 = (
+                        Fore.YELLOW + " {0}".format(no_pickle_attrs) + Style.RESET_ALL
+                    )
+                    err_frag3 = "{0}".format(linesep)
+                    sys.stderr.write(err_frag1 + err_frag2 + err_frag3)
+                    for attr in no_pickle_attrs:
+                        sys.stderr.write(
+                            "        msg_dict['{0}'].{1}: {2}'{3}'{4}{5}".format(
+                                key,
+                                attr,
+                                Fore.RED,
+                                repr(getattr(thisobj, attr)),
+                                Style.RESET_ALL,
+                                linesep,
+                            )
+                        )
+
+            sys.stderr.write(
+                "    {0}t_q_send({1}) keys (no problems):{2}{3}".format(
+                    Style.BRIGHT, dict_hash, Style.RESET_ALL, linesep
+                )
+            )
+            for key in sorted(set(msg_dict.keys()).difference(no_pickle_keys)):
+                sys.stderr.write(
+                    "      msg_dict['{0}']: {1}{2}{3}{4}".format(
+                        key,
+                        Fore.GREEN,
+                        repr(msg_dict.get(key)),
+                        Style.RESET_ALL,
+                        linesep,
+                    )
+                )
+
+    def invalid_dict_pickle_keys(self, msg_dict):
+        """Return a list of keys that can't be pickled.  Return [] if 
+        there are no pickling problems with the values associated with the
+        keys.  Return the list of keys, if there are problems."""
+        no_pickle_keys = list()
+        for key, val in msg_dict.items():
+            try:
+                pickle.dumps(val)
+            except TypeError:
+                no_pickle_keys.append(key)  # This key has an unpicklable value
+        return no_pickle_keys
+
+    def invalid_obj_pickle_attrs(self, thisobj):
+        no_pickle_attrs = list()
+        for attr, val in vars(thisobj).items():
+            try:
+                pickle.dumps(getattr(thisobj, attr))
+            except TypeError:
+                no_pickle_attrs.append(attr)  # This attr is unpicklable
+        return no_pickle_attrs
 
 
 class ControllerQueue(object):
