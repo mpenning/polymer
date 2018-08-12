@@ -10,7 +10,7 @@ import time
 import sys
 
 """ Polymer.py - Manage parallel tasks
-     Copyright (C) 2015-2016 David Michael Pennington
+     Copyright (C) 2015-2018 David Michael Pennington
 
      This program is free software: you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published by
@@ -398,12 +398,19 @@ class TaskMgr(object):
                 if self.log_level>=2:
                     self.log.info("Worker w_id {0} died".format(w_id))
                 task = self.worker_assignments.get(w_id, {})
+                if self.log_level>=2 and task!={}:
+                    self.log.info(
+                        "Dead worker w_id {0} was assigned task - {1}".format(
+                        w_id, task))
                 error_suffix = ""
                 if task!={}:
                     del self.worker_assignments[w_id]
                     if self.resubmit_on_error or self.hot_loop:
                         self.work_todo.append(task)
                         self.queue_task(task)
+                        if self.log_level>=2:
+                            self.log.info(
+                                "Resubmitting task - {0}".format(task))
                         error_suffix = " with task={1}".format(task)
                 if self.log_level>=1:
                     self.log.debug("TaskMgr.work_todo: {0} tasks left".format(
