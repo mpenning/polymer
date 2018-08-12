@@ -14,7 +14,8 @@ import os
 
 from colorama import init as color_init
 from colorama import Fore, Style
-from billiard import Process, Queue
+from multiprocessing import Process, Queue
+#from billiard import Process, Queue
 
 """ Polymer.py - Manage parallel tasks
      Copyright (C) 2015-2018 David Michael Pennington
