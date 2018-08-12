@@ -57,7 +57,7 @@ class Worker(object):
                 ###    If it's a temporary error, the job can 
                 ###    be resubmitted and try again.
                 sys.stderr.write("{0} Worker: {1} died returning results: {2}\n".format(
-                    datetime.now(), w_id, tb_str)
+                    datetime.now(), w_id, tb_str))
                 sys.stderr.write("    TaskMgr resubmit_on_error may help\n")
                 sys.exit(1)
 
@@ -114,7 +114,7 @@ class Worker(object):
                     ###    If it's a temporary error, the job can 
                     ###    be resubmitted and try again.
                     sys.stderr.write("{0} Worker: {1} died returning results: {2}\n".format(
-                        datetime.now(), w_id, tb_str)
+                        datetime.now(), w_id, tb_str))
                     sys.stderr.write("    TaskMgr resubmit_on_error may help\n")
                     sys.exit(1)
 
