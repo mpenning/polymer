@@ -36,18 +36,18 @@ Usage
           return """<{0}, wait: {1}>""".format(self.text, self.wait)
 
    def Controller():
-      """Controller() builds a list of tasks, and queues them to the TaskMgr
-      There is nothing special about the name Controller()... it's just some
-      code to build a list of SimpleTask() instances."""
+       """Controller() builds a list of tasks, and queues them to the TaskMgr
+       There is nothing special about the name Controller()... it's just some
+       code to build a list of SimpleTask() instances."""
 
-      tasks = list()
+       tasks = list()
 
-      ## Build ten tasks... do *not* depend on execution order...
-      num_tasks = 10
-      for ii in range(0, num_tasks):
-          tasks.append(SimpleTask(text="Task {0}".format(ii), wait=ii))
+       ## Build ten tasks... do *not* depend on execution order...
+       num_tasks = 10
+       for ii in range(0, num_tasks):
+           tasks.append(SimpleTask(text="Task {0}".format(ii), wait=ii))
 
-      targs = {
+       targs = {
            'work_todo': tasks,  # a list of SimpleTask() instances
            'hot_loop': False,   # If True, continuously loop over the tasks
            'log_level': 0,              # Logging off (debugging=3)
