@@ -1,7 +1,13 @@
 Summary
 -------
 
-A simple framework to run tasks in parallel.
+A simple framework to run tasks in parallel.  It's similar to 
+multiprocessing.Pool, but has a few enhancements over that.
+
+Polymer is mostly useful for its Worker error logging and run-time statistics.
+It also restarts crashed multiprocessing workers automatically (not true with
+multiprocessing.Pool).  When a worker crashes, Polymer knows what the worker 
+was doing and resubmits that task as well.
 
 Usage
 -----
@@ -55,6 +61,9 @@ Usage
            'resubmit_on_error': False,  # Do not retry errored jobs...
            'queue': ControllerQueue(),
            'worker_cycle_sleep': 0.001, # Worker sleep time after a task
+           'log_stdout': False,         # Don't log to stdout (default: True)
+           'log_path':  "taskmgr.log",  # Log file name
+           'log_interval': 10,          # Statistics logging interval
        }
 
        ## task_mgr reads and executes the queued tasks
