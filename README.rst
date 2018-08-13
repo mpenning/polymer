@@ -2,12 +2,16 @@ Summary
 -------
 
 A simple framework to run tasks in parallel.  It's similar to 
-multiprocessing.Pool, but has a few enhancements over that.
+multiprocessing.Pool, but has a few enhancements over that.  For example,
+mp.Pool is only useful for multiprocessing functions (not objects).  You can
+wrap a function around the object, but it's nicer just to deal with task
+objects themselves.
 
 Polymer is mostly useful for its Worker error logging and run-time statistics.
 It also restarts crashed multiprocessing workers automatically (not true with
 multiprocessing.Pool).  When a worker crashes, Polymer knows what the worker 
-was doing and resubmits that task as well.
+was doing and resubmits that task as well.  This definitely is not fool-proof;
+however, it's a helpful feature.
 
 Usage
 -----
