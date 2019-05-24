@@ -1,6 +1,7 @@
 
 from logging.handlers import TimedRotatingFileHandler
 from logging.handlers import MemoryHandler
+from multiprocessing import Process, Queue
 from datetime import datetime
 from copy import deepcopy
 from hashlib import md5
@@ -17,11 +18,9 @@ except ImportError:
 
 from colorama import init as color_init
 from colorama import Fore, Style
-from multiprocessing import Process, Queue
-#from billiard import Process, Queue
 
 """ Polymer.py - Manage parallel tasks
-     Copyright (C) 2015-2018 David Michael Pennington
+     Copyright (C) 2015-2019 David Michael Pennington
 
      This program is free software: you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published by
