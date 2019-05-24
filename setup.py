@@ -11,7 +11,7 @@ def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
 
 setup(name='polymer',
-      version="0.0.26",
+      version="0.0.27",
       description='Polymer',
       url='http://github.com/mpenning/polymer',
       author='David Michael Pennington',
@@ -26,7 +26,7 @@ setup(name='polymer',
       use_2to3=True,
       zip_safe=False,
       install_requires = ["billiard", "colorama"],
-      setup_requires=["setuptools_hg"],  # setuptools_hg must be installed as a python module
+      setup_requires=[],  # setuptools_hg must be installed as a python module
       classifiers=[
           'Development Status :: 4 - Beta',
           'Environment :: Plugins',
