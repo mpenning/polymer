@@ -1,7 +1,6 @@
 
 from logging.handlers import TimedRotatingFileHandler
 from logging.handlers import MemoryHandler
-from Queue import Empty, Full
 from datetime import datetime
 from copy import deepcopy
 from hashlib import md5
@@ -11,6 +10,10 @@ import cPickle as pickle
 import time
 import sys
 import os
+try:
+    from Queue import Empty, Full
+except ImportError:
+    from queue import Empty, Full
 
 from colorama import init as color_init
 from colorama import Fore, Style
