@@ -13,6 +13,9 @@ multiprocessing.Pool).  When a worker crashes, Polymer knows what the worker
 was doing and resubmits that task as well.  This definitely is not fool-proof;
 however, it's a helpful feature.
 
+Once TaskMgr().supervise() finishes, a list of object instances is returned. 
+You can store per-task results as an attribute of each object instance.
+
 Usage
 -----
 
@@ -60,13 +63,13 @@ Usage
        targs = {
            'work_todo': tasks,  # a list of SimpleTask() instances
            'hot_loop': False,   # If True, continuously loop over the tasks
-           'log_level': 0,              # Logging off (debugging=3)
            'worker_count': 3,           # Number of workers (default: 5)
            'resubmit_on_error': False,  # Do not retry errored jobs...
            'queue': ControllerQueue(),
            'worker_cycle_sleep': 0.001, # Worker sleep time after a task
            'log_stdout': False,         # Don't log to stdout (default: True)
            'log_path':  "taskmgr.log",  # Log file name
+           'log_level': 0,              # Logging off is 0 (debugging=3)
            'log_interval': 10,          # Statistics logging interval
        }
 
