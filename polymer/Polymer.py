@@ -437,7 +437,7 @@ class TaskMgr(object):
                     stats.queue_times.append(task_queue_time)
 
                     if self.log_level >= 1:
-                        self.log.debug(
+                        self.log.info(
                             "TaskMgr.work_todo: {0} tasks left".format(
                                 len(self.work_todo)
                             )
