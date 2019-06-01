@@ -7,10 +7,15 @@ from copy import deepcopy
 from hashlib import md5
 import traceback as tb
 import logging
-import cPickle as pickle
 import time
 import sys
 import os
+
+if sys.version_info<(3,0):
+    import cPickle as pickle # Python2
+else:
+    import _pickle as pickle # Python3
+
 try:
     from Queue import Empty, Full
 except ImportError:
