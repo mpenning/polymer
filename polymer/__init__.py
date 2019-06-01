@@ -1,2 +1,2 @@
-import Polymer
-import abc_task
+import polymer.Polymer
+import polymer.abc_task
