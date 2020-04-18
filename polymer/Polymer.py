@@ -498,7 +498,8 @@ class TaskMgr(object):
                 state = "__EMPTY__"
             except Exception as e:
                 tb_str = "".join(tb.format_exception(*(sys.exc_info())))
-                raise e(tb_str)
+                print("ERROR:")
+                print(e, tb_str)
 
             if stats.log_time:
                 if self.log_level >= 0:
@@ -563,7 +564,7 @@ class TaskMgr(object):
 
     def kill_workers(self):
         stop = {"state": "__DIE__"}
-        [self.t_q_send(stop) for x in xrange(0, self.worker_count)]
+        [self.t_q_send(stop) for x in range(0, self.worker_count)]
 
     def respawn_dead_workers(self):
         """Respawn workers / tasks upon crash"""
@@ -605,7 +606,7 @@ class TaskMgr(object):
 
     def spawn_workers(self):
         workers = dict()
-        for w_id in xrange(0, self.worker_count):
+        for w_id in range(0, self.worker_count):
             workers[w_id] = Process(
                 target=Worker,
                 name="Polymer.py Worker {0}".format(w_id),
