@@ -100,8 +100,14 @@ class Worker(object):
                     dict_hash,
                     Style.RESET_ALL,
                     Fore.MAGENTA,
-                    msg_dict,
+                    str(msg_dict),
                     Style.RESET_ALL,
+                    linesep,
+                )
+            )
+            sys.stderr.write(
+                "{0}           Pickling problems often come from open TCP sockets!{1}".format(
+                    datetime.now(),
                     linesep,
                 )
             )
@@ -110,7 +116,7 @@ class Worker(object):
             ## Send all output to stderr...
             err_frag1 = (
                 Style.BRIGHT
-                + "    r_q_send({0}) Offending dict keys:".format(dict_hash)
+                + "    r_q_send({0}) Offending dict keys:".format(str(dict_hash))
                 + Style.RESET_ALL
             )
             err_frag2 = Fore.YELLOW + " {0}".format(no_pickle_keys) + Style.RESET_ALL

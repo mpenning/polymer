@@ -11,16 +11,19 @@ class BaseTask(object):
 
         self.worker_loop_delay = 0.00001   # Default 10us worker sleep delay 
 
+    def __hash__(self):
+        return id(self)
+
     @abstractmethod
     def __repr__(self):
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def __eq__(self):
         """Define how tasks are uniquely identified"""
-        pass
+        raise NotImplementedError("Be sure to use isinstance() for all __eq__() checks.  See README")
 
     @abstractmethod
     def run(self):
         """Define what should be done"""
-        pass
+        raise NotImplementedError
