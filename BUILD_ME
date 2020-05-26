@@ -7,7 +7,6 @@ hg bookmark -f master
 # Push to github
 git push
 # PYPI push...
-        python setup.py register -r pypi
         python setup.py bdist_wheel sdist
         twine upload dist/*
 
