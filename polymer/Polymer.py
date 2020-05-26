@@ -106,8 +106,10 @@ class Worker(object):
                 )
             )
             sys.stderr.write(
-                "{0}           Pickling problems often come from open TCP sockets!{1}".format(
+                "{0}          {1}Pickling problems often come from open or hung TCP sockets{2}{3}".format(
                     datetime.now(),
+                    Style.BRIGHT,
+                    Style.RESET_ALL,
                     linesep,
                 )
             )
