@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+
 from logging.handlers import TimedRotatingFileHandler
 from logging.handlers import MemoryHandler
 from multiprocessing.queues import Queue as MP_Queue
