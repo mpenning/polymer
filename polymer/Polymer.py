@@ -418,6 +418,7 @@ class TaskMgr(object):
 
         # By default, Python3's multiprocessing.Queue doesn't implement qsize()
         if sys.version_info >= (3, 4):
+            # NOTE:  OSX doesn't implement queue.qsize(), py3_mp_queue is a workaround
             # py3_mp_queue() subclasses multiprocessing.Queue() and adds qsize()
             self.todo_q = py3_mp_queue() # workers listen to todo_q (task queue)
             self.done_q = py3_mp_queue() # results queue
