@@ -9,3 +9,9 @@ clean:
 	-rm -rf .eggs/
 	-rm -rf .cache/
 	-rm -rf build/ dist/ polymer.egg-info/ setuptools*
+
+.PHONY: pypi
+pypi:
+	-python setup.py register -r pypi
+	-python setup.py bdist_wheel sdist
+	-twine upload dist/*
