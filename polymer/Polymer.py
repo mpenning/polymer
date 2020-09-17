@@ -1,7 +1,7 @@
 from logging.handlers import TimedRotatingFileHandler
 from logging.handlers import MemoryHandler
 from multiprocessing.queues import Queue as MP_Queue
-from multiprocessing import Process, Queue
+from multiprocessing import Process
 import multiprocessing
 from datetime import datetime
 from copy import deepcopy
@@ -18,15 +18,17 @@ else:
     import _pickle as pickle  # Python3
 
 try:
+    # This works in Python2.7...
     from Queue import Empty, Full
 except ImportError:
+    # This works in Python3.x...
     from queue import Empty, Full
 
 from colorama import init as color_init
 from colorama import Fore, Style
 
 """ Polymer.py - Manage parallel tasks
-     Copyright (C) 2015-2019 David Michael Pennington
+     Copyright (C) 2015-2020 David Michael Pennington
 
      This program is free software: you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published by
@@ -75,7 +77,14 @@ class SharedCounter(object):
         return self.count.value
 
 
-class py3_mp_queue(MP_Queue):
+################################################################################
+#
+#py23_mp_queue() is heavily based on the following github repo's commit...
+#http://github.com/vterron/lemon/commit/9ca6b4b1212228dbd4f69b88aaf88b12952d7d6f
+#Code license is GPLv3 according to github.com/vterron/lemon/setup.py
+#
+################################################################################
+class py23_mp_queue(MP_Queue):
     """ A portable implementation of multiprocessing.Queue.
 
     Because of multithreading / multiprocessing semantics, Queue.qsize() may
@@ -90,25 +99,29 @@ class py3_mp_queue(MP_Queue):
     """
 
     def __init__(self, *args, **kwargs):
-        super(py3_mp_queue, self).__init__(
-            *args, ctx=multiprocessing.get_context(), **kwargs
-        )
+        # Requires different __init__() based on Python2 vs Python3.4...
+        if sys.version_info >= (3, 4, 0):
+            super(py23_mp_queue, self).__init__(
+                *args, ctx=multiprocessing.get_context(), **kwargs
+            )
+        else:
+            super(py23_mp_queue, self).__init__(*args, **kwargs)
         self.size = SharedCounter(0)
 
     def put(self, *args, **kwargs):
         self.size.increment(1)
-        super(py3_mp_queue, self).put(*args, **kwargs)
+        super(py23_mp_queue, self).put(*args, **kwargs)
 
     def get(self, *args, **kwargs):
         self.size.increment(-1)
-        return super(py3_mp_queue, self).get(*args, **kwargs)
+        return super(py23_mp_queue, self).get(*args, **kwargs)
 
     def qsize(self):
-        """ Reliable implementation of multiprocessing.Queue.qsize() """
+        """Reliable implementation of multiprocessing.Queue.qsize() """
         return self.size.value
 
     def empty(self):
-        """ Reliable implementation of multiprocessing.Queue.empty() """
+        """Reliable implementation of multiprocessing.Queue.empty() """
         return not self.qsize()
 
 
@@ -417,16 +430,13 @@ class TaskMgr(object):
         self.resubmit_on_error = resubmit_on_error
 
         # By default, Python3's multiprocessing.Queue doesn't implement qsize()
-        if sys.version_info >= (3, 4):
-            # NOTE:  OSX doesn't implement queue.qsize(), py3_mp_queue is a workaround
-            # py3_mp_queue() subclasses multiprocessing.Queue() and adds qsize()
-            self.todo_q = py3_mp_queue() # workers listen to todo_q (task queue)
-            self.done_q = py3_mp_queue() # results queue
-        else:
-            self.todo_q = Queue() # workers listen to todo_q (task queue)
-            self.done_q = Queue() # results queue
+        # NOTE:  OSX doesn't implement queue.qsize(), py23_mp_queue is a
+        #     workaround
+        # AttributeError: 'module' object has no attribute 'get_context'
+        self.todo_q = py23_mp_queue()  # workers listen to todo_q (task queue)
+        self.done_q = py23_mp_queue()  # results queue
 
-        self.worker_assignments = dict() # key: w_id, value: worker Process objs
+        self.worker_assignments = dict()  # key: w_id, value: worker Process objs
         self.results = dict()
         self.configure_logging()
         self.hot_loop = hot_loop
@@ -821,5 +831,5 @@ class ControllerQueue(object):
 
     def __init__(self):
         ## to and from are with respect to the (client) controller object
-        self.to_q = Queue()  # sent to the controller from TaskMgr
-        self.from_q = Queue()  # sent from the controller to TaskMgr
+        self.to_q = py23_mp_queue()  # sent to the controller from TaskMgr
+        self.from_q = py23_mp_queue()  # sent from the controller to TaskMgr
