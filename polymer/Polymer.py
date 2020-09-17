@@ -1,7 +1,8 @@
-
 from logging.handlers import TimedRotatingFileHandler
 from logging.handlers import MemoryHandler
+from multiprocessing.queues import Queue as MP_Queue
 from multiprocessing import Process, Queue
+import multiprocessing
 from datetime import datetime
 from copy import deepcopy
 from hashlib import md5
@@ -11,10 +12,10 @@ import time
 import sys
 import os
 
-if sys.version_info<(3,0):
-    import cPickle as pickle # Python2
+if sys.version_info < (3, 0):
+    import cPickle as pickle  # Python2
 else:
-    import _pickle as pickle # Python3
+    import _pickle as pickle  # Python3
 
 try:
     from Queue import Empty, Full
@@ -45,26 +46,92 @@ from colorama import Fore, Style
 """
 
 
+class SharedCounter(object):
+    """ A synchronized shared counter.
+
+    The locking done by multiprocessing.Value ensures that only a single
+    process or thread may read or write the in-memory ctypes object. However,
+    in order to do n += 1, Python performs a read followed by a write, so a
+    second process may read the old value before the new one is written by the
+    first process. The solution is to use a multiprocessing.Lock to guarantee
+    the atomicity of the modifications to Value.
+
+    This class comes almost entirely from Eli Bendersky's blog:
+    http://eli.thegreenplace.net/2012/01/04/shared-counter-with-pythons-multiprocessing/
+
+    """
+
+    def __init__(self, n=0):
+        self.count = multiprocessing.Value("i", n)
+
+    def increment(self, n=1):
+        """ Increment the counter by n (default = 1) """
+        with self.count.get_lock():
+            self.count.value += n
+
+    @property
+    def value(self):
+        """ Return the value of the counter """
+        return self.count.value
+
+
+class py3_mp_queue(MP_Queue):
+    """ A portable implementation of multiprocessing.Queue.
+
+    Because of multithreading / multiprocessing semantics, Queue.qsize() may
+    raise the NotImplementedError exception on Unix platforms like Mac OS X
+    where sem_getvalue() is not implemented. This subclass addresses this
+    problem by using a synchronized shared counter (initialized to zero) and
+    increasing / decreasing its value every time the put() and get() methods
+    are called, respectively. This not only prevents NotImplementedError from
+    being raised, but also allows us to implement a reliable version of both
+    qsize() and empty().
+
+    """
+
+    def __init__(self, *args, **kwargs):
+        super(py3_mp_queue, self).__init__(
+            *args, ctx=multiprocessing.get_context(), **kwargs
+        )
+        self.size = SharedCounter(0)
+
+    def put(self, *args, **kwargs):
+        self.size.increment(1)
+        super(py3_mp_queue, self).put(*args, **kwargs)
+
+    def get(self, *args, **kwargs):
+        self.size.increment(-1)
+        return super(py3_mp_queue, self).get(*args, **kwargs)
+
+    def qsize(self):
+        """ Reliable implementation of multiprocessing.Queue.qsize() """
+        return self.size.value
+
+    def empty(self):
+        """ Reliable implementation of multiprocessing.Queue.empty() """
+        return not self.qsize()
+
+
 class Worker(object):
     """multiprocessing worker"""
 
-    def __init__(self, w_id, t_q, r_q, default_sleep=0.00001):
+    def __init__(self, w_id, todo_q, done_q, default_sleep=0.00001):
         assert isinstance(default_sleep, int) or isinstance(default_sleep, float)
         color_init()
         self.w_id = w_id
         self.cycle_sleep = default_sleep  # How long the worker should sleep
         self.task = None
-        self.r_q = r_q
+        self.done_q = done_q
 
         try:
-            self.message_loop(t_q, r_q)  # do work
+            self.message_loop(todo_q, done_q)  # do work
         except:
             if self.task is not None:
                 self.task.task_stop = time.time()  # Seconds since epoch
 
             ## Format and return the error
             tb_str = "".join(tb.format_exception(*(sys.exc_info())))
-            self.r_q_send(
+            self.done_q_send(
                 {
                     "w_id": self.w_id,
                     "task": self.task,
@@ -77,15 +144,15 @@ class Worker(object):
             # time.sleep(self.cycle_sleep)
             self.task = None
 
-    def r_q_send(self, msg_dict):
-        """Send message dicts through r_q, and throw explicit errors for 
+    def done_q_send(self, msg_dict):
+        """Send message dicts through done_q, and throw explicit errors for 
         pickle problems"""
 
         # Check whether msg_dict can be pickled...
         no_pickle_keys = self.invalid_dict_pickle_keys(msg_dict)
 
         if no_pickle_keys == []:
-            self.r_q.put(msg_dict)
+            self.done_q.put(msg_dict)
 
         else:
             ## Explicit pickle error handling
@@ -94,7 +161,7 @@ class Worker(object):
             dict_hash = str(hash_func.hexdigest())[-7:]  # Last 7 digits of hash
             linesep = os.linesep
             sys.stderr.write(
-                "{0} {1}r_q_send({2}) Can't pickle this dict:{3} '''{7}{4}   {5}{7}{6}''' {7}".format(
+                "{0} {1}done_q_send({2}) Can't pickle this dict:{3} '''{7}{4}   {5}{7}{6}''' {7}".format(
                     datetime.now(),
                     Style.BRIGHT,
                     dict_hash,
@@ -107,10 +174,7 @@ class Worker(object):
             )
             sys.stderr.write(
                 "{0}          {1}Pickling problems often come from open or hung TCP sockets{2}{3}".format(
-                    datetime.now(),
-                    Style.BRIGHT,
-                    Style.RESET_ALL,
-                    linesep,
+                    datetime.now(), Style.BRIGHT, Style.RESET_ALL, linesep,
                 )
             )
 
@@ -118,7 +182,7 @@ class Worker(object):
             ## Send all output to stderr...
             err_frag1 = (
                 Style.BRIGHT
-                + "    r_q_send({0}) Offending dict keys:".format(str(dict_hash))
+                + "    done_q_send({0}) Offending dict keys:".format(str(dict_hash))
                 + Style.RESET_ALL
             )
             err_frag2 = Fore.YELLOW + " {0}".format(no_pickle_keys) + Style.RESET_ALL
@@ -139,7 +203,7 @@ class Worker(object):
                     no_pickle_attrs = self.invalid_obj_pickle_attrs(thisobj)
                     err_frag1 = (
                         Style.BRIGHT
-                        + "      r_q_send({0}) Offending attrs:".format(dict_hash)
+                        + "      done_q_send({0}) Offending attrs:".format(dict_hash)
                         + Style.RESET_ALL
                     )
                     err_frag2 = (
@@ -160,7 +224,7 @@ class Worker(object):
                         )
 
             sys.stderr.write(
-                "    {0}r_q_send({1}) keys (no problems):{2}{3}".format(
+                "    {0}done_q_send({1}) keys (no problems):{2}{3}".format(
                     Style.BRIGHT, dict_hash, Style.RESET_ALL, linesep
                 )
             )
@@ -207,18 +271,18 @@ class Worker(object):
                 no_pickle_attrs.append(attr)  # This attr is unpicklable
         return no_pickle_attrs
 
-    def message_loop(self, t_q, r_q):
+    def message_loop(self, todo_q, done_q):
         """Loop through messages and execute tasks"""
         t_msg = {}
         while t_msg.get("state", "") != "__DIE__":
             try:
-                t_msg = t_q.get(True, self.cycle_sleep)  # Poll blocking
+                t_msg = todo_q.get(True, self.cycle_sleep)  # Poll blocking
                 self.task = t_msg.get("task", "")  # __DIE__ has no task
                 if self.task != "":
 
                     self.task.task_start = time.time()  # Start the timer
                     # Send ACK to the controller who requested work on this task
-                    self.r_q_send(
+                    self.done_q_send(
                         {"w_id": self.w_id, "task": self.task, "state": "__ACK__"}
                     )
 
@@ -229,7 +293,7 @@ class Worker(object):
                     self.task.result = self.task.run()
                     self.task.task_stop = time.time()  # Seconds since epoch
 
-                    self.r_q_send(
+                    self.done_q_send(
                         {"w_id": self.w_id, "task": self.task, "state": "__FINISHED__"}
                     )  # Ack work finished
 
@@ -244,7 +308,7 @@ class Worker(object):
                     self.task.task_stop = time.time()  # Seconds since epoch
                 # Handle all other errors here...
                 tb_str = "".join(tb.format_exception(*(sys.exc_info())))
-                self.r_q_send(
+                self.done_q_send(
                     {
                         "w_id": self.w_id,
                         "task": self.task,
@@ -352,9 +416,16 @@ class TaskMgr(object):
         self.log_interval = log_interval
         self.resubmit_on_error = resubmit_on_error
 
-        self.t_q = Queue()  # workers listen to t_q (task queue)
-        self.r_q = Queue()  # results queue
-        self.worker_assignments = dict()  # key: w_id, value: worker Process objs
+        # By default, Python3's multiprocessing.Queue doesn't implement qsize()
+        if sys.version_info >= (3, 4):
+            # py3_mp_queue() subclasses multiprocessing.Queue() and adds qsize()
+            self.todo_q = py3_mp_queue() # workers listen to todo_q (task queue)
+            self.done_q = py3_mp_queue() # results queue
+        else:
+            self.todo_q = Queue() # workers listen to todo_q (task queue)
+            self.done_q = Queue() # results queue
+
+        self.worker_assignments = dict() # key: w_id, value: worker Process objs
         self.results = dict()
         self.configure_logging()
         self.hot_loop = hot_loop
@@ -431,7 +502,7 @@ class TaskMgr(object):
                     self.queue_tasks_from_controller(delay=delay)  # queue tasks
                     time.sleep(delay)
 
-                r_msg = self.r_q.get_nowait()  # __ACK__ or __FINISHED__
+                r_msg = self.done_q.get_nowait()  # __ACK__ or __FINISHED__
                 task = r_msg.get("task")
                 w_id = r_msg.get("w_id")
                 state = r_msg.get("state", "")
@@ -533,11 +604,13 @@ class TaskMgr(object):
     def calc_wait_time(self, exec_times):
         num_samples = float(len(exec_times))
         if num_samples > 0.0:
-            queue_size = max(self.r_q.qsize(), 1.0) + max(self.t_q.qsize(), 1.0)
+            # NOTE:  OSX doesn't implement queue.qsize(), I worked around the
+            # problem
+            queue_size = max(self.done_q.qsize(), 1.0) + max(self.todo_q.qsize(), 1.0)
             min_task_time = min(exec_times)
             wait_time = min_task_time / queue_size
         else:
-            wait_time = 0.00001  # 10us delay to avoid worker / r_q race
+            wait_time = 0.00001  # 10us delay to avoid worker / done_q race
 
         return wait_time
 
@@ -560,7 +633,7 @@ class TaskMgr(object):
 
     def queue_task(self, task):
         task.queue_time = time.time()  # Record the queueing time
-        self.t_q_send({"task": task})
+        self.todo_q_send({"task": task})
 
     def is_finished(self):
         if (len(self.work_todo) == 0) and (len(self.worker_assignments.keys()) == 0):
@@ -572,7 +645,7 @@ class TaskMgr(object):
 
     def kill_workers(self):
         stop = {"state": "__DIE__"}
-        [self.t_q_send(stop) for x in range(0, self.worker_count)]
+        [self.todo_q_send(stop) for x in range(0, self.worker_count)]
 
     def respawn_dead_workers(self):
         """Respawn workers / tasks upon crash"""
@@ -607,7 +680,7 @@ class TaskMgr(object):
                     )
                 self.workers[w_id] = Process(
                     target=Worker,
-                    args=(w_id, self.t_q, self.r_q, self.worker_cycle_sleep),
+                    args=(w_id, self.todo_q, self.done_q, self.worker_cycle_sleep),
                 )
                 self.workers[w_id].daemon = True
                 self.workers[w_id].start()
@@ -618,19 +691,19 @@ class TaskMgr(object):
             workers[w_id] = Process(
                 target=Worker,
                 name="Polymer.py Worker {0}".format(w_id),
-                args=(w_id, self.t_q, self.r_q, self.worker_cycle_sleep),
+                args=(w_id, self.todo_q, self.done_q, self.worker_cycle_sleep),
             )
             workers[w_id].daemon = True
             workers[w_id].start()
         return workers
 
-    def t_q_send(self, msg_dict):
+    def todo_q_send(self, msg_dict):
 
         # Check whether msg_dict can be pickled...
         no_pickle_keys = self.invalid_dict_pickle_keys(msg_dict)
 
-        if no_pickle_keys==[]:
-            self.t_q.put(msg_dict)
+        if no_pickle_keys == []:
+            self.todo_q.put(msg_dict)
         else:
             ## Explicit pickle error handling
             hash_func = md5()
@@ -638,7 +711,7 @@ class TaskMgr(object):
             dict_hash = str(hash_func.hexdigest())[-7:]  # Last 7 digits of hash
             linesep = os.linesep
             sys.stderr.write(
-                "{0} {1}t_q_send({2}) Can't pickle this dict:{3} '''{7}{4}   {5}{7}{6}''' {7}".format(
+                "{0} {1}todo_q_send({2}) Can't pickle this dict:{3} '''{7}{4}   {5}{7}{6}''' {7}".format(
                     datetime.now(),
                     Style.BRIGHT,
                     dict_hash,
@@ -654,7 +727,7 @@ class TaskMgr(object):
             ## Send all output to stderr...
             err_frag1 = (
                 Style.BRIGHT
-                + "    t_q_send({0}) Offending dict keys:".format(dict_hash)
+                + "    todo_q_send({0}) Offending dict keys:".format(dict_hash)
                 + Style.RESET_ALL
             )
             err_frag2 = Fore.YELLOW + " {0}".format(no_pickle_keys) + Style.RESET_ALL
@@ -675,7 +748,7 @@ class TaskMgr(object):
                     no_pickle_attrs = self.invalid_obj_pickle_attrs(thisobj)
                     err_frag1 = (
                         Style.BRIGHT
-                        + "      t_q_send({0}) Offending attrs:".format(dict_hash)
+                        + "      todo_q_send({0}) Offending attrs:".format(dict_hash)
                         + Style.RESET_ALL
                     )
                     err_frag2 = (
@@ -696,7 +769,7 @@ class TaskMgr(object):
                         )
 
             sys.stderr.write(
-                "    {0}t_q_send({1}) keys (no problems):{2}{3}".format(
+                "    {0}todo_q_send({1}) keys (no problems):{2}{3}".format(
                     Style.BRIGHT, dict_hash, Style.RESET_ALL, linesep
                 )
             )
