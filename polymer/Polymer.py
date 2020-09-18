@@ -2,7 +2,7 @@ from __future__ import absolute_import
 
 from logging.handlers import TimedRotatingFileHandler
 from logging.handlers import MemoryHandler
-from multiprocessing.queues import Queue as MP_Queue
+import multiprocessing.queues as mpq
 from multiprocessing import Process
 import multiprocessing
 from datetime import datetime
@@ -111,7 +111,7 @@ class SharedCounter(object):
 #Code license is GPLv3 according to github.com/vterron/lemon/setup.py
 #
 ################################################################################
-class _py23_mp_queue(MP_Queue):
+class _py23_mp_queue(mpq.Queue):
     """ A portable implementation of multiprocessing.Queue.
 
     Because of multithreading / multiprocessing semantics, Queue.qsize() may
@@ -152,7 +152,7 @@ class _py23_mp_queue(MP_Queue):
         """Reliable implementation of multiprocessing.Queue.empty() """
         return not self.qsize()
 
-class py23_mp_queue(MP_Queue):
+class py23_mp_queue(mpq.Queue):
     """ A portable implementation of multiprocessing.Queue.
     Because of multithreading / multiprocessing semantics, Queue.qsize() may
     raise the NotImplementedError exception on Unix platforms like Mac OS X
@@ -174,6 +174,7 @@ class py23_mp_queue(MP_Queue):
         else:
             super(py23_mp_queue, self).__init__(*args, **kwargs)
         self._size = SharedCounter(0)
+        print("THIS begin: {}".format(self._size.value))
 
     def put(self, *args, **kwargs):
         print("YO put {}".format(self._size.value))
