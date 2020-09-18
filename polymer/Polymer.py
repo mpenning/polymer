@@ -167,9 +167,12 @@ class py23_mp_queue(MP_Queue):
     #    https://github.com/vterron/lemon/blob/master/util/queue.py
 
     def __init__(self, *args, **kwargs):
-        super(py23_mp_queue, self).__init__(
+        if sys.version_info >= (3, 4, 0):
+            super(py23_mp_queue, self).__init__(
                 *args, ctx=multiprocessing.get_context("spawn"), **kwargs
-                )
+            )
+        else:
+            super(py23_mp_queue, self).__init__(*args, **kwargs)
         self._size = SharedCounter(0)
 
     def put(self, *args, **kwargs):
