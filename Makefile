@@ -12,6 +12,7 @@ clean:
 
 .PHONY: pypi
 pypi:
+	-make clean
 	-python setup.py register -r pypi
 	-python setup.py bdist_wheel sdist
 	-twine upload dist/*
