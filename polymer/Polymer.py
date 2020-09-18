@@ -176,12 +176,15 @@ class py23_mp_queue(MP_Queue):
         self._size = SharedCounter(0)
 
     def put(self, *args, **kwargs):
+        print("YO put {}".format(self._size.value))
         super(py23_mp_queue, self).put(*args, **kwargs)
         self._size.increment(1)
 
     def get(self, *args, **kwargs):
+        print("YO get (before) {}".format(self._size.value))
         item = super(py23_mp_queue, self).get(*args, **kwargs)
         self._size.increment(-1)
+        print("    YO get (after) {}".format(self._size.value))
         return item
 
     def qsize(self):
