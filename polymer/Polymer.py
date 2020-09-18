@@ -624,7 +624,7 @@ class TaskMgr(object):
                 if self.log_level >= 0:
                     self.log.info(stats.log_message)
 
-            # Adaptive loop delay
+            # Adaptive loop delay unless on Mac OSX... OSX delay is constant...
             delay = self.calc_wait_time(stats.exec_times)
             time.sleep(delay)
 
@@ -643,12 +643,18 @@ class TaskMgr(object):
 
     def calc_wait_time(self, exec_times):
         num_samples = float(len(exec_times))
-        if num_samples > 0.0:
+
+        # Work around Mac OSX problematic queue.qsize() implementation...
+        if sys.platform=='darwin':
+            wait_time = 0.00001  # 10us delay to avoid worker / done_q race
+
+        elif num_samples > 0.0:
             # NOTE:  OSX doesn't implement queue.qsize(), I worked around the
             # problem
             queue_size = max(self.done_q.qsize(), 1.0) + max(self.todo_q.qsize(), 1.0)
             min_task_time = min(exec_times)
             wait_time = min_task_time / queue_size
+
         else:
             wait_time = 0.00001  # 10us delay to avoid worker / done_q race
 
