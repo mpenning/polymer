@@ -97,31 +97,55 @@ class py23_mp_queue(mpq.Queue):
     #    https://github.com/vterron/lemon/blob/master/util/queue.py
 
     def __init__(self, *args, **kwargs):
-        if sys.version_info >= (3, 4, 0):
-            super(py23_mp_queue, self).__init__(
-                *args, ctx=multiprocessing.get_context("spawn"), **kwargs
-            )
-        else:
-            super(py23_mp_queue, self).__init__(*args, **kwargs)
-        self.size = SharedCounter(0)
+        # Use ctx argument if using Python3.4+
+        try:
+            if sys.version_info >= (3, 4, 0):
+                super(py23_mp_queue, self).__init__(
+                    *args, ctx=multiprocessing.get_context("spawn"), **kwargs
+                )
+            else:
+                super(py23_mp_queue, self).__init__(*args, **kwargs)
+
+        except Exception as ee:
+            raise(ee)
+
+        if not sys.platform=='darwin':
+            self.size = SharedCounter(0)
 
     def put(self, *args, **kwargs):
         # Infinite recursion possible if we don't use super() here
-        super(py23_mp_queue, self).put(*args, **kwargs)
-        self.size.increment(1)
+        try:
+            super(py23_mp_queue, self).put(*args, **kwargs)
+
+        except Full:
+            pass
+
+        if not sys.platform=='darwin':
+            self.size.increment(1)
 
     def get(self, *args, **kwargs):
-        item = super(py23_mp_queue, self).get(*args, **kwargs)
-        self.size.increment(-1)
-        return item
+        if not sys.platform=='darwin':
+            self.size.increment(-1)
+        try:
+            item = super(py23_mp_queue, self).get(*args, **kwargs)
+            return item
+
+        except Empty:
+            return {}
 
     def qsize(self):
         """ Reliable implementation of multiprocessing.Queue.qsize() """
-        return self.size.value
+        if not sys.platform=='darwin':
+            return self.size.value
+        else:
+            raise NotImplementedError
 
     def empty(self):
         """ Reliable implementation of multiprocessing.Queue.empty() """
-        return not self.qsize()
+        if not sys.platform=='darwin':
+            return not self.qsize()
+        else:
+            raise NotImplementedError
 
     def clear(self):
         """ Remove all elements from the Queue. """
