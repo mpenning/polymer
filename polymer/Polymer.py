@@ -101,7 +101,7 @@ class py23_mp_queue(MP_Queue):
     """
 
     def __init__(self, *args, **kwargs):
-        # Requires different __init__() based on Python2 vs Python3.4...
+        # py23_mp_queue() requires different __init__() for Py2 vs Py3.4+
         if sys.version_info >= (3, 4, 0):
             super(py23_mp_queue, self).__init__(
                 *args, ctx=multiprocessing.get_context(), **kwargs
@@ -112,11 +112,13 @@ class py23_mp_queue(MP_Queue):
 
     def put(self, *args, **kwargs):
         self.size.increment(1)
-        super(py23_mp_queue, self).put(*args, **kwargs)
+        # NOTE I'm not sure we really need to call super() again here
+        #super(py23_mp_queue, self).put(*args, **kwargs)
 
     def get(self, *args, **kwargs):
         self.size.increment(-1)
-        return super(py23_mp_queue, self).get(*args, **kwargs)
+        # NOTE I'm not sure we really need to call super() again here
+        #super(py23_mp_queue, self).get(*args, **kwargs)
 
     def qsize(self):
         """Reliable implementation of multiprocessing.Queue.qsize() """
