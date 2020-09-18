@@ -112,13 +112,11 @@ class py23_mp_queue(MP_Queue):
 
     def put(self, *args, **kwargs):
         self.size.increment(1)
-        # FIXME I disabled this while debugging 2020-09-28
-        #super(py23_mp_queue, self).put(*args, **kwargs)
+        super(py23_mp_queue, self).put(*args, **kwargs)
 
     def get(self, *args, **kwargs):
         self.size.increment(-1)
-        # FIXME I disabled this while debugging 2020-09-28
-        #return super(py23_mp_queue, self).get(*args, **kwargs)
+        return super(py23_mp_queue, self).get(*args, **kwargs)
 
     def qsize(self):
         """Reliable implementation of multiprocessing.Queue.qsize() """
