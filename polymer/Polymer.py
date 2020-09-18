@@ -104,8 +104,7 @@ class py23_mp_queue(MP_Queue):
         # Requires different __init__() based on Python2 vs Python3.4...
         if sys.version_info >= (3, 4, 0):
             super(py23_mp_queue, self).__init__(
-                #*args, ctx=multiprocessing.get_context(), **kwargs
-                *args, **kwargs
+                *args, ctx=multiprocessing.get_context("spawn"), **kwargs
             )
         else:
             super(py23_mp_queue, self).__init__(*args, **kwargs)
