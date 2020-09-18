@@ -550,7 +550,7 @@ class TaskMgr(object):
                         self.worker_assignments.pop(w_id)  # Delete the key
                         finished = self.is_finished()
                     else:
-                        self.controller.to_q.put(task)  # Send to the controller
+                        self.controller.to_controller_q.put(task)  # Send to the controller
                         self.worker_assignments.pop(w_id)  # Delete the key
 
                 elif state == "__ERROR__":
@@ -635,7 +635,7 @@ class TaskMgr(object):
         while not finished:
             try:
                 ## Hot loops will queue a list of tasks...
-                tasklist = self.controller.from_q.get_nowait()
+                tasklist = self.controller.from_controller_q.get_nowait()
                 for task in tasklist:
                     if delay > 0.0:
                         task.worker_loop_delay = delay
@@ -836,5 +836,5 @@ class ControllerQueue(object):
 
     def __init__(self):
         ## to and from are with respect to the (client) controller object
-        self.to_q = py23_mp_queue()  # sent to the controller from TaskMgr
-        self.from_q = py23_mp_queue()  # sent from the controller to TaskMgr
+        self.to_controller_q = py23_mp_queue()  # sent to the controller from TaskMgr
+        self.from_controller_q = py23_mp_queue()  # sent from the controller to TaskMgr
