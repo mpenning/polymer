@@ -588,10 +588,11 @@ class TaskMgr(object):
 
             except Empty:
                 state = "__EMPTY__"
-            except Exception as e:
+
+            except Exception as ee:
                 tb_str = "".join(tb.format_exception(*(sys.exc_info())))
                 print("ERROR:")
-                print(e, tb_str)
+                print(ee, tb_str)
 
             if stats.log_time:
                 if self.log_level >= 0:
