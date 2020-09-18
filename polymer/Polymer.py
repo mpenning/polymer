@@ -174,18 +174,15 @@ class py23_mp_queue(mpq.Queue):
         else:
             super(py23_mp_queue, self).__init__(*args, **kwargs)
         self._size = SharedCounter(0)
-        print("THIS begin: {}".format(self._size.value))
 
     def put(self, *args, **kwargs):
-        print("YO put {}".format(self._size.value))
+        # Infinite recursion possible if we don't use super() here
         super(py23_mp_queue, self).put(*args, **kwargs)
         self._size.increment(1)
 
     def get(self, *args, **kwargs):
-        print("YO get (before) {}".format(self._size.value))
         item = super(py23_mp_queue, self).get(*args, **kwargs)
         self._size.increment(-1)
-        print("    YO get (after) {}".format(self._size.value))
         return item
 
     def qsize(self):
