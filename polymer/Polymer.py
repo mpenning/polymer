@@ -1,7 +1,10 @@
 from __future__ import absolute_import
 
-from logging.handlers import TimedRotatingFileHandler
-from logging.handlers import MemoryHandler
+from loguru import logger
+
+global PACKAGE_NAME
+PACKAGE_NAME = "Polymer"
+
 import multiprocessing.queues as mpq
 from multiprocessing import Process
 import multiprocessing
@@ -9,7 +12,6 @@ from datetime import datetime
 from copy import deepcopy
 from hashlib import md5
 import traceback as tb
-import logging
 import time
 import sys
 import os
@@ -399,6 +401,7 @@ class TaskMgrStats(object):
             return True
         return False
 
+    # FIXME - stopped here...
     @property
     def log_message(self):
         """Build a log message and reset the stats"""
@@ -486,29 +489,17 @@ class TaskMgr(object):
             self.supervise()  # hot_loops automatically supervise()
 
     def configure_logging(self):
+        logger.disable(PACKAGE_NAME)
         if self.log_level:
-            self.log = logging.getLogger(__name__)
-            fmtstr = "%(asctime)s.%(msecs).03d %(levelname)s %(message)s"
-            format = logging.Formatter(fmt=fmtstr, datefmt="%Y-%m-%d %H:%M:%S")
-            self.log.setLevel(logging.DEBUG)
 
             if self.log_path:
-                ## Rotate the logfile every day...
-                rotating_file = TimedRotatingFileHandler(
-                    self.log_path, when="D", interval=1, backupCount=5
-                )
-                rotating_file.setFormatter(format)
-                memory_log = logging.handlers.MemoryHandler(
-                    1024 * 10, logging.DEBUG, rotating_file
-                )
-                self.log.addHandler(memory_log)
+                logger.add(sink=self.log_path)
             if self.log_stdout:
-                console = logging.StreamHandler()
-                console.setFormatter(format)
-                self.log.addHandler(console)
+                logger.add(sink=sys.stdout)
 
             if not bool(self.log_path) and (not self.log_stdout):
                 self.log_level = 0
+            logger.enable(PACKAGE_NAME)
 
     def supervise(self):
         """If not in a hot_loop, call supervise() to start the tasks"""
@@ -522,7 +513,7 @@ class TaskMgr(object):
         hot_loop = self.hot_loop
         if self.log_level >= 2:
             logmsg = "TaskMgr.supervise() started {0} workers".format(self.worker_count)
-            self.log.info(logmsg)
+            logger.info(logmsg)
         self.workers = self.spawn_workers()
 
         ## Add work
@@ -532,12 +523,12 @@ class TaskMgr(object):
                 logmsg = "TaskMgr.supervise() received {0} tasks".format(
                     len(self.work_todo)
                 )
-                self.log.info(logmsg)
+                logger.info(logmsg)
             for task in self.work_todo:
                 self.num_tasks += 1
                 if self.log_level >= 2:
                     logmsg = "TaskMgr.supervise() queued task: {0}".format(task)
-                    self.log.info(logmsg)
+                    logger.info(logmsg)
                 self.queue_task(task)
 
         finished = False
@@ -557,9 +548,9 @@ class TaskMgr(object):
                     self.worker_assignments[w_id] = task
                     self.work_todo.remove(task)
                     if self.log_level >= 3:
-                        self.log.debug("r_msg: {0}".format(r_msg))
+                        logger.debug("r_msg: {0}".format(r_msg))
                     if self.log_level >= 3:
-                        self.log.debug("w_id={0} received task={1}".format(w_id, task))
+                        logger.debug("w_id={0} received task={1}".format(w_id, task))
                 elif state == "__FINISHED__":
                     now = time.time()
                     task_exec_time = task.task_stop - task.task_start
@@ -568,14 +559,14 @@ class TaskMgr(object):
                     stats.queue_times.append(task_queue_time)
 
                     if self.log_level >= 1:
-                        self.log.info(
+                        logger.info(
                             "TaskMgr.work_todo: {0} tasks left".format(
                                 len(self.work_todo)
                             )
                         )
                     if self.log_level >= 3:
-                        self.log.debug("TaskMgr.work_todo: {0}".format(self.work_todo))
-                        self.log.debug("r_msg: {0}".format(r_msg))
+                        logger.debug("TaskMgr.work_todo: {0}".format(self.work_todo))
+                        logger.debug("r_msg: {0}".format(r_msg))
 
                     if not hot_loop:
                         self.retval.add(task)  # Add result to retval
@@ -594,15 +585,15 @@ class TaskMgr(object):
                     stats.queue_times.append(task_queue_time)
 
                     if self.log_level >= 1:
-                        self.log.error("r_msg: {0}".format(r_msg))
-                        self.log.error("".join(r_msg.get("error")))
-                        self.log.debug(
+                        logger.error("r_msg: {0}".format(r_msg))
+                        logger.error("".join(r_msg.get("error")))
+                        logger.debug(
                             "TaskMgr.work_todo: {0} tasks left".format(
                                 len(self.work_todo)
                             )
                         )
                     if self.log_level >= 3:
-                        self.log.debug("TaskMgr.work_todo: {0}".format(self.work_todo))
+                        logger.debug("TaskMgr.work_todo: {0}".format(self.work_todo))
 
                     if not hot_loop:
                         if not self.resubmit_on_error:
@@ -630,7 +621,7 @@ class TaskMgr(object):
 
             if stats.log_time:
                 if self.log_level >= 0:
-                    self.log.info(stats.log_message)
+                    logger.info(stats.log_message)
 
             # Adaptive loop delay unless on Mac OSX... OSX delay is constant...
             delay = self.calc_wait_time(stats.exec_times)
@@ -646,7 +637,7 @@ class TaskMgr(object):
 
             ## Log a final stats summary...
             if self.log_level > 0:
-                self.log.info(stats.log_message)
+                logger.info(stats.log_message)
             return self.retval
 
     def calc_wait_time(self, exec_times):
@@ -707,10 +698,10 @@ class TaskMgr(object):
             if not p.is_alive():
                 # Queue the task for another worker, if required...
                 if self.log_level >= 2:
-                    self.log.info("Worker w_id {0} died".format(w_id))
+                    logger.info("Worker w_id {0} died".format(w_id))
                 task = self.worker_assignments.get(w_id, {})
                 if self.log_level >= 2 and task != {}:
-                    self.log.info(
+                    logger.info(
                         "Dead worker w_id {0} was assigned task - {1}".format(
                             w_id, task
                         )
@@ -722,14 +713,14 @@ class TaskMgr(object):
                         self.work_todo.append(task)
                         self.queue_task(task)
                         if self.log_level >= 2:
-                            self.log.info("Resubmitting task - {0}".format(task))
+                            logger.info("Resubmitting task - {0}".format(task))
                         error_suffix = " with task={1}".format(task)
                 if self.log_level >= 1:
-                    self.log.debug(
+                    logger.debug(
                         "TaskMgr.work_todo: {0} tasks left".format(len(self.work_todo))
                     )
                 if self.log_level >= 2:
-                    self.log.info(
+                    logger.info(
                         "Respawning worker - w_id={0}{1}".format(w_id, error_suffix)
                     )
                 self.workers[w_id] = Process(
