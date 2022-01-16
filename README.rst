@@ -91,4 +91,4 @@ Usage
 License
 -------
 
-BSD 3-Clause
+GPLv3
