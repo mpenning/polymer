@@ -1,9 +1,8 @@
 from __future__ import absolute_import
 
 from loguru import logger
-
-global PACKAGE_NAME
-PACKAGE_NAME = "Polymer"
+from colorama import init as color_init
+from colorama import Fore, Style
 
 import multiprocessing.queues as mpq
 from multiprocessing import Process
@@ -21,8 +20,9 @@ import _pickle as pickle  # Python3
 # This works in Python3.x...
 from queue import Empty, Full
 
-from colorama import init as color_init
-from colorama import Fore, Style
+global PACKAGE_NAME
+PACKAGE_NAME = "Polymer"
+
 
 """ Polymer.py - Manage parallel tasks
      Copyright (C) 2021-2022 David Michael Pennington
@@ -364,11 +364,6 @@ class TaskMgrStats(object):
         self.queue_times = list()
 
     @property
-    def worker_pct_busy(self):
-        # return time_worked/total_work_time*100.0
-        return time_worked
-
-    @property
     def time_delta(self):
         return time.time() - self.stats_start
 
@@ -379,7 +374,6 @@ class TaskMgrStats(object):
             return True
         return False
 
-    # FIXME - stopped here...
     @property
     def log_message(self):
         """Build a log message and reset the stats"""
