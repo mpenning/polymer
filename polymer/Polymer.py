@@ -38,7 +38,7 @@ PACKAGE_NAME = "Polymer"
  of this license document, but changing it is not allowed.
 """
 
-
+@logger.catch(default=True, onerror=lambda _: sys.exit(1))
 class SharedCounter(object):
     """A synchronized shared counter.
     The locking done by multiprocessing.Value ensures that only a single
@@ -138,6 +138,7 @@ class py3_mp_queue(mpq.Queue):
             self.get()
 
 
+@logger.catch(default=True, onerror=lambda _: sys.exit(1))
 class Worker(object):
     """multiprocessing worker"""
 
@@ -349,6 +350,7 @@ class Worker(object):
         return
 
 
+@logger.catch(default=True, onerror=lambda _: sys.exit(1))
 class TaskMgrStats(object):
     def __init__(self, worker_count, log_interval=60, hot_loop=False):
         self.log_interval = log_interval
@@ -409,6 +411,7 @@ class TaskMgrStats(object):
         return """{0}\n{1}\n{2}""".format(task_msg, task_mam, queue_mam)
 
 
+@logger.catch(default=True, onerror=lambda _: sys.exit(1))
 class TaskMgr(object):
     """Manage tasks to and from workers; maybe one day use zmq instead of
     multiprocessing.Queue"""
@@ -834,6 +837,7 @@ class TaskMgr(object):
         return no_pickle_attrs
 
 
+@logger.catch(default=True, onerror=lambda _: sys.exit(1))
 class ControllerQueue(object):
     """A set of queues to manage a continuous hot TaskMgr work loop"""
 
