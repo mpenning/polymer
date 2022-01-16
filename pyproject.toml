@@ -5,7 +5,7 @@ description = "Manage parallel tasks"
 authors = [
     "Mike Pennington <mike@pennington.net>",
 ]
-license = "BSD-3-Clause"
+license = "GPLv3"
 readme = "README.rst"
 homepage = "https://github.com/mpenning/polymer"
 documentation = ""
@@ -17,7 +17,7 @@ classifiers=[
     "Intended Audience :: System Administrators",
     "Intended Audience :: Information Technology",
     "Intended Audience :: Telecommunications Industry",
-    "License :: OSI Approved :: BSD License",
+    "License :: OSI Approved :: GNU General Public License (GPL)",
     "Natural Language :: English",
     "Operating System :: OS Independent",
     "Programming Language :: Python",
@@ -31,7 +31,8 @@ classifiers=[
 
 [tool.poetry.dependencies]
 python = ">=3.6"
-colorama = "==0.4.3"
+colorama = "0.4.3"
+loguru = "0.5.3"
 
 [tool.poetry.dev-dependencies]
 black = ">=20.8b1"

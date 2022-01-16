@@ -30,32 +30,12 @@ from colorama import Fore, Style
      Copyright (C) 2019      David Michael Pennington at ThousandEyes
      Copyright (C) 2015-2019 David Michael Pennington at Samsung Data Services
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
+                    GNU GENERAL PUBLIC LICENSE
+                       Version 3, 29 June 2007
 
-1.  Redistributions of source code must retain the above copyright
-    notice, this list of conditions and the following disclaimer.
-
-2.  Redistributions in binary form must reproduce the above copyright
-    notice, this list of conditions and the following disclaimer in the
-    documentation and/or other materials provided with the distribution.
-
-3.  Neither the name of the copyright holder nor the names of its
-    contributors may be used to endorse or promote products derived from
-    this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
-PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
-TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ Copyright (C) 2007 Free Software Foundation, Inc. <http://fsf.org/>
+ Everyone is permitted to copy and distribute verbatim copies
+ of this license document, but changing it is not allowed.
 """
 
 class SharedCounter(object):
@@ -87,12 +67,12 @@ class SharedCounter(object):
 
 ################################################################################
 #
-#py23_mp_queue() is heavily based on the following github repo's commit...
+#py3_mp_queue() is heavily based on the following github repo's commit...
 #http://github.com/vterron/lemon/commit/9ca6b4b1212228dbd4f69b88aaf88b12952d7d6f
 #Code license is GPLv3 according to github.com/vterron/lemon/setup.py
 #
 ################################################################################
-class py23_mp_queue(mpq.Queue):
+class py3_mp_queue(mpq.Queue):
     """ A portable implementation of multiprocessing.Queue.
     Because of multithreading / multiprocessing semantics, Queue.qsize() may
     raise the NotImplementedError exception on Unix platforms like Mac OS X
@@ -108,16 +88,9 @@ class py23_mp_queue(mpq.Queue):
 
     def __init__(self, *args, **kwargs):
         # Use ctx argument if using Python3.4+
-        try:
-            if sys.version_info >= (3, 4, 0):
-                super(py23_mp_queue, self).__init__(
-                    *args, ctx=multiprocessing.get_context("spawn"), **kwargs
-                )
-            else:
-                super(py23_mp_queue, self).__init__(*args, **kwargs)
-
-        except Exception as ee:
-            raise(ee)
+        super(py3_mp_queue, self).__init__(
+            *args, ctx=multiprocessing.get_context("spawn"), **kwargs
+        )
 
         if not sys.platform=='darwin':
             self.size = SharedCounter(0)
@@ -125,7 +98,7 @@ class py23_mp_queue(mpq.Queue):
     def put(self, *args, **kwargs):
         # Infinite recursion possible if we don't use super() here
         try:
-            super(py23_mp_queue, self).put(*args, **kwargs)
+            super(py3_mp_queue, self).put(*args, **kwargs)
 
         except Full:
             pass
@@ -137,7 +110,7 @@ class py23_mp_queue(mpq.Queue):
         if not sys.platform=='darwin':
             self.size.increment(-1)
         try:
-            item = super(py23_mp_queue, self).get(*args, **kwargs)
+            item = super(py3_mp_queue, self).get(*args, **kwargs)
             return item
 
         except Empty:
@@ -469,11 +442,11 @@ class TaskMgr(object):
         self.resubmit_on_error = resubmit_on_error
 
         # By default, Python3's multiprocessing.Queue doesn't implement qsize()
-        # NOTE:  OSX doesn't implement queue.qsize(), py23_mp_queue is a
+        # NOTE:  OSX doesn't implement queue.qsize(), py3_mp_queue is a
         #     workaround
         # AttributeError: 'module' object has no attribute 'get_context'
-        self.todo_q = py23_mp_queue()  # workers listen to todo_q (task queue)
-        self.done_q = py23_mp_queue()  # results queue
+        self.todo_q = py3_mp_queue()  # workers listen to todo_q (task queue)
+        self.done_q = py3_mp_queue()  # results queue
 
         self.worker_assignments = dict()  # key: w_id, value: worker Process objs
         self.results = dict()
@@ -865,5 +838,5 @@ class ControllerQueue(object):
 
     def __init__(self):
         ## to and from are with respect to the (client) controller object
-        self.from_taskmgr_q = py23_mp_queue()  # sent to the controller from TaskMgr
-        self.to_taskmgr_q = py23_mp_queue()  # sent from the controller to TaskMgr
+        self.from_taskmgr_q = py3_mp_queue()  # sent to the controller from TaskMgr
+        self.to_taskmgr_q = py3_mp_queue()  # sent from the controller to TaskMgr
