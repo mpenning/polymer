@@ -38,8 +38,9 @@ from colorama import Fore, Style
  of this license document, but changing it is not allowed.
 """
 
+
 class SharedCounter(object):
-    """ A synchronized shared counter.
+    """A synchronized shared counter.
     The locking done by multiprocessing.Value ensures that only a single
     process or thread may read or write the in-memory ctypes object. However,
     in order to do n += 1, Python performs a read followed by a write, so a
@@ -51,10 +52,10 @@ class SharedCounter(object):
     http://eli.thegreenplace.net/2012/01/04/shared-counter-with-pythons-multiprocessing/
     """
 
-    def __init__(self, n = 0):
-        self.count = multiprocessing.Value('i', n)
+    def __init__(self, n=0):
+        self.count = multiprocessing.Value("i", n)
 
-    def increment(self, n = 1):
+    def increment(self, n=1):
         """ Increment the counter by n (default = 1) """
         with self.count.get_lock():
             self.count.value += n
@@ -67,13 +68,13 @@ class SharedCounter(object):
 
 ################################################################################
 #
-#py3_mp_queue() is heavily based on the following github repo's commit...
-#http://github.com/vterron/lemon/commit/9ca6b4b1212228dbd4f69b88aaf88b12952d7d6f
-#Code license is GPLv3 according to github.com/vterron/lemon/setup.py
+# py3_mp_queue() is heavily based on the following github repo's commit...
+# http://github.com/vterron/lemon/commit/9ca6b4b1212228dbd4f69b88aaf88b12952d7d6f
+# Code license is GPLv3 according to github.com/vterron/lemon/setup.py
 #
 ################################################################################
 class py3_mp_queue(mpq.Queue):
-    """ A portable implementation of multiprocessing.Queue.
+    """A portable implementation of multiprocessing.Queue.
     Because of multithreading / multiprocessing semantics, Queue.qsize() may
     raise the NotImplementedError exception on Unix platforms like Mac OS X
     where sem_getvalue() is not implemented. This subclass addresses this
@@ -83,6 +84,7 @@ class py3_mp_queue(mpq.Queue):
     being raised, but also allows us to implement a reliable version of both
     qsize() and empty().
     """
+
     # NOTE This is the new implementation based on:
     #    https://github.com/vterron/lemon/blob/master/util/queue.py
 
@@ -92,7 +94,7 @@ class py3_mp_queue(mpq.Queue):
             *args, ctx=multiprocessing.get_context("spawn"), **kwargs
         )
 
-        if not sys.platform=='darwin':
+        if not sys.platform == "darwin":
             self.size = SharedCounter(0)
 
     def put(self, *args, **kwargs):
@@ -103,11 +105,11 @@ class py3_mp_queue(mpq.Queue):
         except Full:
             pass
 
-        if not sys.platform=='darwin':
+        if not sys.platform == "darwin":
             self.size.increment(1)
 
     def get(self, *args, **kwargs):
-        if not sys.platform=='darwin':
+        if not sys.platform == "darwin":
             self.size.increment(-1)
         try:
             item = super(py3_mp_queue, self).get(*args, **kwargs)
@@ -118,14 +120,14 @@ class py3_mp_queue(mpq.Queue):
 
     def qsize(self):
         """ Reliable implementation of multiprocessing.Queue.qsize() """
-        if not sys.platform=='darwin':
+        if not sys.platform == "darwin":
             return self.size.value
         else:
             raise NotImplementedError
 
     def empty(self):
         """ Reliable implementation of multiprocessing.Queue.empty() """
-        if not sys.platform=='darwin':
+        if not sys.platform == "darwin":
             return not self.qsize()
         else:
             raise NotImplementedError
@@ -169,7 +171,7 @@ class Worker(object):
             self.task = None
 
     def done_q_send(self, msg_dict):
-        """Send message dicts through done_q, and throw explicit errors for 
+        """Send message dicts through done_q, and throw explicit errors for
         pickle problems"""
 
         # Check whether msg_dict can be pickled...
@@ -198,7 +200,10 @@ class Worker(object):
             )
             sys.stderr.write(
                 "{0}          {1}Pickling problems often come from open or hung TCP sockets{2}{3}".format(
-                    datetime.now(), Style.BRIGHT, Style.RESET_ALL, linesep,
+                    datetime.now(),
+                    Style.BRIGHT,
+                    Style.RESET_ALL,
+                    linesep,
                 )
             )
 
@@ -264,7 +269,7 @@ class Worker(object):
                 )
 
     def invalid_dict_pickle_keys(self, msg_dict):
-        """Return a list of keys that can't be pickled.  Return [] if 
+        """Return a list of keys that can't be pickled.  Return [] if
         there are no pickling problems with the values associated with the
         keys.  Return the list of keys, if there are problems."""
         no_pickle_keys = list()
@@ -411,7 +416,7 @@ class TaskMgrStats(object):
 
 
 class TaskMgr(object):
-    """Manage tasks to and from workers; maybe one day use zmq instead of 
+    """Manage tasks to and from workers; maybe one day use zmq instead of
     multiprocessing.Queue"""
 
     # http://www.jeffknupp.com/blog/2014/02/11/a-celerylike-python-task-queue-in-55-lines-of-code/
@@ -546,7 +551,9 @@ class TaskMgr(object):
                         self.worker_assignments.pop(w_id)  # Delete the key
                         finished = self.is_finished()
                     else:
-                        self.controller.from_taskmgr_q.put(task)  # Send to the controller
+                        self.controller.from_taskmgr_q.put(
+                            task
+                        )  # Send to the controller
                         self.worker_assignments.pop(w_id)  # Delete the key
 
                 elif state == "__ERROR__":
@@ -617,7 +624,7 @@ class TaskMgr(object):
         num_samples = float(len(exec_times))
 
         # Work around Mac OSX problematic queue.qsize() implementation...
-        if sys.platform=='darwin':
+        if sys.platform == "darwin":
             wait_time = 0.00001  # 10us delay to avoid worker / done_q race
 
         elif num_samples > 0.0:
@@ -803,7 +810,7 @@ class TaskMgr(object):
                 )
 
     def invalid_dict_pickle_keys(self, msg_dict):
-        """Return a list of keys that can't be pickled.  Return [] if 
+        """Return a list of keys that can't be pickled.  Return [] if
         there are no pickling problems with the values associated with the
         keys.  Return the list of keys, if there are problems."""
         no_pickle_keys = list()
