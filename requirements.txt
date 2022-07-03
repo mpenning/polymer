@@ -1,2 +1,2 @@
-loguru="0.5.3"
+loguru
 colorama
