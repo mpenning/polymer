@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "polymer"
-version = "0.0.63"
+version = "0.0.64"
 description = "Manage parallel tasks"
 authors = [
     "Mike Pennington <mike@pennington.net>",
