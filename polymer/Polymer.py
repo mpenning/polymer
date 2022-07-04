@@ -289,7 +289,7 @@ class Worker(object):
         there are no pickling problems with the values associated with the
         keys.  Return the list of keys, if there are problems.
         """
-        no_pickle_keys = list()
+        no_pickle_keys = []
         for key, val in msg_dict.items():
 
             try:
@@ -308,7 +308,7 @@ class Worker(object):
 
     @logger.catch(default=True, onerror=lambda _: sys.exit(1))
     def invalid_obj_pickle_attrs(self, thisobj):
-        no_pickle_attrs = list()
+        no_pickle_attrs = []
         for attr, val in vars(thisobj).items():
             try:
                 pickle.dumps(getattr(thisobj, attr))
@@ -374,18 +374,24 @@ class TaskMgrStats(object):
 
     @logger.catch(default=True, onerror=lambda _: sys.exit(1))
     def __init__(self, worker_count, log_interval=5, hot_loop=False):
-        self.log_interval = log_interval
-        self.stats_start = time.time()
-        self.exec_times = list()  # Archive of all exec times
-        self.queue_times = list()  # Archive of all queue times
+
+        assert isinstance(worker_count, int)
+        assert isinstance(log_interval, int)
+        assert isinstance(hot_loop, bool)
+
         self.worker_count = worker_count
+        self.log_interval = float(log_interval)
         self.hot_loop = hot_loop
 
-    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
-    def reset(self):
         self.stats_start = time.time()
-        self.exec_times = list()
-        self.queue_times = list()
+        self.exec_times = []
+        self.queue_times = []
+
+    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    def reset_stats(self):
+        self.stats_start = time.time()
+        self.exec_times = []
+        self.queue_times = []
 
     @property
     @logger.catch(default=True, onerror=lambda _: sys.exit(1))
@@ -404,8 +410,10 @@ class TaskMgrStats(object):
 
     @property
     @logger.catch(default=True, onerror=lambda _: sys.exit(1))
-    def log_message(self):
-        """Build a log message and reset the stats"""
+    def log_stats_message(self):
+        """
+        Build log message strings and reset the stats
+        """
         time_delta = deepcopy(self.time_delta)
         total_work_time = self.worker_count * time_delta
         time_worked = sum(self.exec_times)
@@ -423,7 +431,8 @@ class TaskMgrStats(object):
         total_tasks = len(self.exec_times)
         avg_task_rate = total_tasks / time_delta
 
-        self.reset()
+        # Reset stats begin time...
+        self.reset_stats()
 
         stats_digits = 5
         task_msg = """Ran {0} tasks, {1} tasks/s; {2} workers {3}% busy""".format(
@@ -463,7 +472,7 @@ class TaskMgr(object):
         resubmit_on_error=False,
     ):
         if work_todo is None:
-            work_todo = list()
+            work_todo = []
         assert isinstance(work_todo, list), "Please add work in a python list"
         self.work_todo = work_todo  # List with work to do
 
@@ -482,8 +491,8 @@ class TaskMgr(object):
         self.todo_q = py3_mp_queue()  # workers listen to todo_q (task queue)
         self.done_q = py3_mp_queue()  # results queue
 
-        self.worker_assignments = dict()  # key: w_id, value: worker Process objs
-        self.results = dict()
+        self.worker_assignments = {}  # key: w_id, value: worker Process objs
+        self.results = {}
         self.configure_logging()
         self.hot_loop = hot_loop
         self.retval = set({})
@@ -516,6 +525,9 @@ class TaskMgr(object):
 
     @logger.catch(default=True, onerror=lambda _: sys.exit(1))
     def configure_logging(self):
+        """
+        Configure logging parameters output to sys.stdout.
+        """
 
         logger.disable(PACKAGE_NAME)
         if self.log_level > 0:
@@ -532,7 +544,9 @@ class TaskMgr(object):
 
     @logger.catch(default=True, onerror=lambda _: sys.exit(1))
     def supervise(self):
-        """If not in a hot_loop, call supervise() to start the tasks"""
+        """
+        If not in a hot_loop, call supervise() to start the tasks.
+        """
         self.retval = set({})
         stats = TaskMgrStats(
             worker_count=self.worker_count,
@@ -563,6 +577,7 @@ class TaskMgr(object):
 
         finished = False
         while not finished:
+
             try:
                 if hot_loop is True:
                     # Calculate the adaptive loop delay
@@ -581,6 +596,7 @@ class TaskMgr(object):
                         logger.debug("r_msg: {0}".format(r_msg))
                     if self.log_level >= 3:
                         logger.debug("w_id={0} received task={1}".format(w_id, task))
+
                 elif state == "__FINISHED__":
                     now = time.time()
                     task_exec_time = task.task_stop - task.task_start
@@ -627,6 +643,7 @@ class TaskMgr(object):
                     if self.log_level >= 3:
                         logger.debug("TaskMgr.work_todo: {0}".format(self.work_todo))
 
+
                     if hot_loop is False:
                         if not self.resubmit_on_error:
                             # If task is in work_todo, delete it
@@ -651,9 +668,10 @@ class TaskMgr(object):
                 print("ERROR:")
                 print(ee, tb_str)
 
+            # PIZZA
             if stats.is_log_time is True:
                 if self.log_level >= 0:
-                    logger.info(stats.log_message)
+                    logger.info(stats.log_stats_message)
 
             # Adaptive loop delay unless on Mac OSX... OSX delay is constant...
             delay = self.calc_wait_time(stats.exec_times)
@@ -668,9 +686,10 @@ class TaskMgr(object):
             for w_id, p in self.workers.items():
                 p.join()
 
+            # PIZZA
             ## Log a final stats summary...
             if self.log_level > 0:
-                logger.info(stats.log_message)
+                logger.info(stats.log_stats_message)
             return self.retval
 
     @logger.catch(default=True, onerror=lambda _: sys.exit(1))
@@ -771,7 +790,7 @@ class TaskMgr(object):
 
     @logger.catch(default=True, onerror=lambda _: sys.exit(1))
     def spawn_workers(self):
-        workers = dict()
+        workers = {}
         for w_id in range(0, self.worker_count):
             workers[w_id] = Process(
                 target=Worker,
@@ -875,7 +894,7 @@ class TaskMgr(object):
         """Return a list of keys that can't be pickled.  Return [] if
         there are no pickling problems with the values associated with the
         keys.  Return the list of keys, if there are problems."""
-        no_pickle_keys = list()
+        no_pickle_keys = []
         for key, val in msg_dict.items():
             try:
                 pickle.dumps(key)
@@ -890,7 +909,7 @@ class TaskMgr(object):
 
     @logger.catch(default=True, onerror=lambda _: sys.exit(1))
     def invalid_obj_pickle_attrs(self, thisobj):
-        no_pickle_attrs = list()
+        no_pickle_attrs = []
         for attr, val in vars(thisobj).items():
             try:
                 pickle.dumps(getattr(thisobj, attr))
