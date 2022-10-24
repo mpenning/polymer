@@ -13,8 +13,8 @@ class SimpleTask(BaseTask):
         """run() is where all the work is done; this is called by TaskMgr()"""
         ## WARNING... using try / except in run() could squash Polymer's
         ##      internal error logging...
-        #time.sleep(float(self.wait/10))
-        #print(self.text, self.wait/10.0)
+        time.sleep(2.0)
+        print(self.text, self.wait/10.0)
 
     def __eq__(self, other):
         """Define how tasks are uniquely identified"""
@@ -36,21 +36,21 @@ def Controller():
     tasks = list()
 
     ## Build ten tasks... do *not* depend on execution order...
-    num_tasks = 3000
+    num_tasks = 100
     for ii in range(0, num_tasks):
         tasks.append(SimpleTask(text="Task {0}".format(ii), wait=ii))
 
     targs = {
         'work_todo': tasks,  # a list of SimpleTask() instances
         'hot_loop': False,   # If True, continuously loop over the tasks
-        'worker_count': 10,          # Number of workers (default: 5)
+        'worker_count': 30,           # Number of workers (default: 5)
         'resubmit_on_error': False,  # Do not retry errored jobs...
         'queue': ControllerQueue(),
-        'worker_cycle_sleep': 0.00001,# Worker sleep time after a task
-        'log_stdout': True,           # Don't log to stdout (default: True)
-        'log_path':  "",              # Log file name, "" is log to stdout
-        'log_level': 1,               # Logging off is 0 (debugging=3)
-        'log_interval': 2,            # Statistics logging interval
+        'worker_cycle_sleep': 0.001, # Worker sleep time after a task
+        'log_stdout': False,         # Don't log to stdout (default: True)
+        'log_path':  "taskmgr.log",  # Log file name
+        'log_level': 0,              # Logging off is 0 (debugging=3)
+        'log_interval': 10,          # Statistics logging interval
     }
 
     ## task_mgr reads and executes the queued tasks
@@ -62,6 +62,4 @@ def Controller():
 
 if __name__=='__main__':
     Controller()
-
-
 
