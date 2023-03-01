@@ -50,4 +50,5 @@ repo-push-tag-force:
 pypi:
 	make clean
 	poetry build
-	poetry publish
+	python -m twine upload dist/*
+
