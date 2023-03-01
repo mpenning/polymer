@@ -53,18 +53,21 @@ class SharedCounter(object):
     http://eli.thegreenplace.net/2012/01/04/shared-counter-with-pythons-multiprocessing/
     """
 
-    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    #@logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    @logger.catch(reraise=True)
     def __init__(self, n=0):
         self.count = multiprocessing.Value("i", n)
 
-    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    #@logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    @logger.catch(reraise=True)
     def increment(self, n=1):
         """ Increment the counter by n (default = 1) """
         with self.count.get_lock():
             self.count.value += n
 
     @property
-    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    #@logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    @logger.catch(reraise=True)
     def value(self):
         """ Return the value of the counter """
         return self.count.value
@@ -94,7 +97,8 @@ class py3_mp_queue(mpq.Queue):
     # NOTE This is the new implementation based on:
     #    https://github.com/vterron/lemon/blob/master/util/queue.py
 
-    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    #@logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    @logger.catch(reraise=True)
     def __init__(self, *args, **kwargs):
         # Use ctx argument if using Python3.4+
         super(py3_mp_queue, self).__init__(
@@ -104,7 +108,8 @@ class py3_mp_queue(mpq.Queue):
         if not sys.platform == "darwin":
             self.size = SharedCounter(0)
 
-    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    #@logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    @logger.catch(reraise=True)
     def put(self, *args, **kwargs):
         # Infinite recursion possible if we don't use super() here
         try:
@@ -116,7 +121,8 @@ class py3_mp_queue(mpq.Queue):
         if not sys.platform == "darwin":
             self.size.increment(1)
 
-    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    #@logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    @logger.catch(reraise=True)
     def get(self, *args, **kwargs):
         if not sys.platform == "darwin":
             self.size.increment(-1)
@@ -127,7 +133,8 @@ class py3_mp_queue(mpq.Queue):
         except Empty:
             return {}
 
-    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    #@logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    @logger.catch(reraise=True)
     def qsize(self):
         """ Reliable implementation of multiprocessing.Queue.qsize() """
         if sys.platform != "darwin":
@@ -135,7 +142,8 @@ class py3_mp_queue(mpq.Queue):
         else:
             raise NotImplementedError
 
-    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    #@logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    @logger.catch(reraise=True)
     def empty(self):
         """ Reliable implementation of multiprocessing.Queue.empty() """
         if sys.platform != "darwin":
@@ -143,7 +151,8 @@ class py3_mp_queue(mpq.Queue):
         else:
             raise NotImplementedError
 
-    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    #@logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    @logger.catch(reraise=True)
     def clear(self):
         """ Remove all elements from the Queue. """
         while not self.empty():
@@ -153,7 +162,8 @@ class py3_mp_queue(mpq.Queue):
 class Worker(object):
     """multiprocessing worker"""
 
-    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    #@logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    @logger.catch(reraise=True)
     def __init__(self, w_id, todo_q, done_q, default_sleep=0.00001):
         assert isinstance(default_sleep, int) or isinstance(default_sleep, float)
         color_init()
@@ -183,7 +193,8 @@ class Worker(object):
             # time.sleep(self.cycle_sleep)
             self.task = None
 
-    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    #@logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    @logger.catch(reraise=True)
     def done_q_send(self, msg_dict):
         """Send message dicts through done_q, and throw explicit errors for
         pickle problems"""
@@ -282,7 +293,8 @@ class Worker(object):
                     )
                 )
 
-    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    #@logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    @logger.catch(reraise=True)
     def invalid_dict_pickle_keys(self, msg_dict) -> list:
         """
         Return a list of keys that can't be pickled.  Return [] if
@@ -306,7 +318,8 @@ class Worker(object):
 
         return no_pickle_keys
 
-    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    #@logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    @logger.catch(reraise=True)
     def invalid_obj_pickle_attrs(self, thisobj):
         no_pickle_attrs = []
         for attr, val in vars(thisobj).items():
@@ -320,7 +333,8 @@ class Worker(object):
                 no_pickle_attrs.append(attr)  # This attr is unpicklable
         return no_pickle_attrs
 
-    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    #@logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    @logger.catch(reraise=True)
     def message_loop(self, todo_q, done_q):
         """Loop through messages and execute tasks"""
         t_msg = {}
@@ -372,7 +386,8 @@ class Worker(object):
 
 class TaskMgrStats(object):
 
-    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    #@logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    @logger.catch(reraise=True)
     def __init__(self, worker_count, log_interval=5, hot_loop=False):
 
         assert isinstance(worker_count, int)
@@ -387,19 +402,22 @@ class TaskMgrStats(object):
         self.exec_times = []
         self.queue_times = []
 
-    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    #@logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    @logger.catch(reraise=True)
     def reset_stats(self):
         self.stats_start = time.time()
         self.exec_times = []
         self.queue_times = []
 
     @property
-    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    #@logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    @logger.catch(reraise=True)
     def time_delta(self):
         return time.time() - self.stats_start
 
     @property
-    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    #@logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    @logger.catch(reraise=True)
     def is_log_time(self):
         """
         Return True if it's time to log
@@ -409,7 +427,8 @@ class TaskMgrStats(object):
         return False
 
     @property
-    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    #@logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    @logger.catch(reraise=True)
     def log_stats_message(self):
         """
         Build log message strings and reset the stats
@@ -457,7 +476,8 @@ class TaskMgr(object):
     multiprocessing.Queue"""
 
     # http://www.jeffknupp.com/blog/2014/02/11/a-celerylike-python-task-queue-in-55-lines-of-code/
-    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    #@logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    @logger.catch(reraise=True)
     def __init__(
         self,
         work_todo=None,
@@ -506,7 +526,8 @@ class TaskMgr(object):
             self.controller = queue
             self.supervise()  # hot_loops automatically supervise()
 
-    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    #@logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    @logger.catch(reraise=True)
     def validate_attribute_types(self):
 
         assert isinstance(self.worker_count, int)
@@ -523,7 +544,8 @@ class TaskMgr(object):
 
         return True
 
-    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    #@logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    @logger.catch(reraise=True)
     def configure_logging(self):
         """
         Configure logging parameters output to sys.stdout.
@@ -542,7 +564,8 @@ class TaskMgr(object):
                 self.log_level = 0
             logger.enable(PACKAGE_NAME)
 
-    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    #@logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    @logger.catch(reraise=True)
     def supervise(self):
         """
         If not in a hot_loop, call supervise() to start the tasks.
@@ -692,7 +715,8 @@ class TaskMgr(object):
                 logger.info(stats.log_stats_message)
             return self.retval
 
-    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    #@logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    @logger.catch(reraise=True)
     def calc_wait_time(self, exec_times):
         num_samples = float(len(exec_times))
 
@@ -712,7 +736,8 @@ class TaskMgr(object):
 
         return wait_time
 
-    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    #@logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    @logger.catch(reraise=True)
     def queue_tasks_from_controller(self, delay=0.0):
         finished = False
         while not finished:
@@ -730,12 +755,14 @@ class TaskMgr(object):
             # except (Exception) as e:
             #    tb.print_exc()
 
-    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    #@logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    @logger.catch(reraise=True)
     def queue_task(self, task):
         task.queue_time = time.time()  # Record the queueing time
         self.todo_q_send({"task": task})
 
-    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    #@logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    @logger.catch(reraise=True)
     def are_tasks_finished(self):
         if (len(self.work_todo) == 0) and (len(self.worker_assignments.keys()) == 0):
             return True
@@ -744,12 +771,14 @@ class TaskMgr(object):
             return True
         return False
 
-    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    #@logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    @logger.catch(reraise=True)
     def stop_workers(self):
         stop = {"state": "__DIE__"}
         [self.todo_q_send(stop) for x in range(0, self.worker_count)]
 
-    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    #@logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    @logger.catch(reraise=True)
     def respawn_dead_workers(self):
         """Respawn workers / tasks upon crash"""
         for w_id, p in self.workers.items():
@@ -788,7 +817,8 @@ class TaskMgr(object):
                 self.workers[w_id].daemon = True
                 self.workers[w_id].start()
 
-    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    #@logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    @logger.catch(reraise=True)
     def spawn_workers(self):
         workers = {}
         for w_id in range(0, self.worker_count):
@@ -801,7 +831,8 @@ class TaskMgr(object):
             workers[w_id].start()
         return workers
 
-    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    #@logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    @logger.catch(reraise=True)
     def todo_q_send(self, msg_dict):
 
         # Check whether msg_dict can be pickled...
@@ -889,7 +920,8 @@ class TaskMgr(object):
                     )
                 )
 
-    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    #@logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    @logger.catch(reraise=True)
     def invalid_dict_pickle_keys(self, msg_dict):
         """Return a list of keys that can't be pickled.  Return [] if
         there are no pickling problems with the values associated with the
@@ -907,7 +939,8 @@ class TaskMgr(object):
                 no_pickle_keys.append(key)  # This key has an unpicklable value
         return no_pickle_keys
 
-    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    #@logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    @logger.catch(reraise=True)
     def invalid_obj_pickle_attrs(self, thisobj):
         no_pickle_attrs = []
         for attr, val in vars(thisobj).items():
@@ -925,7 +958,8 @@ class TaskMgr(object):
 class ControllerQueue(object):
     """A set of queues to manage a continuous hot TaskMgr work loop"""
 
-    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    #@logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    @logger.catch(reraise=True)
     def __init__(self):
         ## to and from are with respect to the (client) controller object
         self.from_taskmgr_q = py3_mp_queue()  # sent to the controller from TaskMgr
