@@ -13,6 +13,7 @@ clean:
 	-rm -rf .eggs/
 	-rm -rf .cache/
 	-rm -rf build/ dist/ polymer.egg-info/ setuptools*
+	-rm taskmgr.log
 
 .PHONY: repo-push
 repo-push:
