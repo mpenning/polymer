@@ -807,61 +807,25 @@ class TaskMgr(object):
                 "in todo_q_send({0}) Can't pickle this dict:'''{1}'''{2}".format(dict_hash, msg_dict, os.linesep)
             )
 
-            ## Verbose list of the offending key(s) / object attrs
-            ## Send all output to stderr...
+            ## Verbose list of the offending key(s) / object attrs...
             err_frag1 = "    todo_q_send({0}) Offending dict keys: {1}{2}".format(dict_hash, no_pickle_keys, os.linesep)
             err_frag2 = " {0}{1}".format(no_pickle_keys, os.linesep)
             logger.warning(err_frag1 + err_frag2)
+
             for key in sorted(no_pickle_keys):
-                sys.stderr.write(
-                    "      msg_dict['{0}']: {1}'{2}'{3}{4}".format(
-                        key,
-                        Fore.MAGENTA,
-                        repr(msg_dict.get(key)),
-                        Style.RESET_ALL,
-                        linesep,
-                    )
-                )
+                logger.debug("      msg_dict['{0}']: '{1}'".format(key, repr(msg_dict.get(key))))
                 if isinstance(msg_dict.get(key), object):
                     thisobj = msg_dict.get(key)
                     no_pickle_attrs = self.invalid_obj_pickle_attrs(thisobj)
-                    err_frag1 = (
-                        Style.BRIGHT
-                        + "      todo_q_send({0}) Offending attrs:".format(dict_hash)
-                        + Style.RESET_ALL
-                    )
-                    err_frag2 = (
-                        Fore.YELLOW + " {0}".format(no_pickle_attrs) + Style.RESET_ALL
-                    )
-                    err_frag3 = "{0}".format(linesep)
-                    sys.stderr.write(err_frag1 + err_frag2 + err_frag3)
+                    err_frag1 = "      todo_q_send({0}) Offending attrs:".format(dict_hash)
+                    err_frag2 = " {0}".format(no_pickle_attrs)
+                    logger.warning(err_frag1 + err_frag2)
                     for attr in no_pickle_attrs:
-                        sys.stderr.write(
-                            "        msg_dict['{0}'].{1}: {2}'{3}'{4}{5}".format(
-                                key,
-                                attr,
-                                Fore.RED,
-                                repr(getattr(thisobj, attr)),
-                                Style.RESET_ALL,
-                                linesep,
-                            )
-                        )
+                        logger.debug("        msg_dict['{0}'].{1}: '{2}'".format(key, attr, repr(getattr(thisobj, attr))))
 
-            sys.stderr.write(
-                "    {0}todo_q_send({1}) keys (no problems):{2}{3}".format(
-                    Style.BRIGHT, dict_hash, Style.RESET_ALL, linesep
-                )
-            )
+            logger.debug("    {0}todo_q_send({1}) keys (no problems):{2}{3}".format(dict_hash))
             for key in sorted(set(msg_dict.keys()).difference(no_pickle_keys)):
-                sys.stderr.write(
-                    "      msg_dict['{0}']: {1}{2}{3}{4}".format(
-                        key,
-                        Fore.GREEN,
-                        repr(msg_dict.get(key)),
-                        Style.RESET_ALL,
-                        linesep,
-                    )
-                )
+                logger.debug("      msg_dict['{0}']: {1}".format(key, repr(msg_dict.get(key))))
 
     #@logger.catch(default=True, onerror=lambda _: sys.exit(1))
     @logger.catch(reraise=True)
