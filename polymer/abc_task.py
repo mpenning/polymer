@@ -7,8 +7,8 @@ class BaseTask(object):
 
     def __init__(self):
 
-        # Remind user that they forgot to call super().__init__() in
-        # their inherited class __init__().
+        # Define a variable used to remind the user if they forgot to
+        # call super().__init__() in their inherited class __init__().
         self.called_super_in_task_subclass = True
 
         self.addr = None  # String IP Address
