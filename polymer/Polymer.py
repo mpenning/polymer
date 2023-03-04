@@ -1,8 +1,6 @@
 from __future__ import absolute_import
 
 from loguru import logger
-from colorama import init as color_init
-from colorama import Fore, Style
 
 import multiprocessing.queues as mpq
 from multiprocessing import Process

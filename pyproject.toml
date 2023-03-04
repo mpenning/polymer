@@ -31,7 +31,6 @@ classifiers=[
 
 [tool.poetry.dependencies]
 python = ">=3.6"
-colorama = "0.4.6"
 loguru = "0.6.0"
 
 [tool.poetry.dev-dependencies]
