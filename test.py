@@ -5,6 +5,7 @@ from polymer.abc_task import BaseTask
 
 class SimpleTask(BaseTask):
     def __init__(self, text="", wait=0.0):
+        # calling super() is required...
         super(SimpleTask, self).__init__()
         self.text = text
         self.wait = wait
