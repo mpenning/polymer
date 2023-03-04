@@ -156,7 +156,6 @@ class Worker(object):
     @logger.catch(reraise=True)
     def __init__(self, w_id, todo_q, done_q, default_sleep=0.00001):
         assert isinstance(default_sleep, int) or isinstance(default_sleep, float)
-        color_init()
         self.w_id = w_id
         self.cycle_sleep = default_sleep  # How long the worker should sleep
         self.task = None
@@ -438,8 +437,6 @@ class TaskMgr(object):
         self.configure_logging()
         self.hot_loop = hot_loop
         self.retval = set({})
-
-        color_init()
 
         self.validate_attribute_types()
 
