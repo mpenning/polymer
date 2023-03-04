@@ -14,6 +14,8 @@ class SimpleTask(BaseTask):
         """run() is where all the work is done; this is called by TaskMgr()"""
         ## WARNING... using try / except in run() could squash Polymer's
         ##      internal error logging...
+        print("Example BaseTask() worker")
+        print("   Putting SimpleTask().run() to sleep for 2 seconds...")
         time.sleep(2.0)
         print(self.text, self.wait/10.0)
 
