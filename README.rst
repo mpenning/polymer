@@ -1,7 +1,7 @@
 Summary
 -------
 
-A simple framework to run tasks in parallel.  It's similar to 
+A simple framework to run tasks in parallel.  It's similar to
 multiprocessing.Pool, but has a few enhancements over that.  For example,
 mp.Pool is only useful for multiprocessing functions (not objects).  You can
 wrap a function around the object, but it's nicer just to deal with task
