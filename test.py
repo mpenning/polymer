@@ -17,7 +17,6 @@ class SimpleTask(BaseTask):
         print("Example BaseTask() worker")
         print("   Putting SimpleTask().run() to sleep for 2 seconds...")
         time.sleep(2.0)
-        print(self.text, self.wait/10.0)
 
     def __eq__(self, other):
         """Define how tasks are uniquely identified"""
@@ -26,7 +25,7 @@ class SimpleTask(BaseTask):
         return False
 
     def __repr__(self):
-        return """<{0}, wait: {1}>""".format(self.text, self.wait)
+        return """<{0}, text: '{1}'>""".format(self.__class__.__name__, self.text)
 
     def __hash__(self):
         return id(self)
