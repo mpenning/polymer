@@ -27,6 +27,8 @@ PACKAGE_NAME = "Polymer"
 
 
 """ Polymer.py - Manage parallel tasks
+     Copyright (C) 2023 David Michael Pennington at Starbucks Coffee Company
+     Copyright (C) 2021-2023 David Michael Pennington
      Copyright (C) 2021-2022 David Michael Pennington
      Copyright (C) 2020-2021 David Michael Pennington at Cisco Systems
      Copyright (C) 2019      David Michael Pennington at ThousandEyes
@@ -353,6 +355,7 @@ class Worker(object):
                     # Update the sleep time with latest recommendations
                     self.cycle_sleep = self.task.worker_loop_delay
 
+
                     # Assign the result of task.run() to task.result
                     self.task.result = self.task.run()
                     self.task.task_stop = time.time()  # Seconds since epoch
@@ -612,6 +615,19 @@ class TaskMgr(object):
                 task = r_msg.get("task")
                 w_id = r_msg.get("w_id")
                 state = r_msg.get("state", "")
+
+                # Verify that the user called `super().__init__()` in their
+                #      BaseTask() subclass __init__()
+                try:
+                    if (task is not None) and (task.called_super_in_task_subclass is True):
+                        # In this case, the user DID call `super().__init__()`
+                        #    in their BaseTask() subclass __init__()
+                        pass
+                except NameError:
+                    # In this case, the user did NOT call `super().__init__()`
+                    #    in their BaseTask() subclass __init__()
+                    raise NameError("You did NOT call `super().__init__()` in your BaseTask() sub-class.")
+
                 if state == "__ACK__":
                     self.worker_assignments[w_id] = task
                     self.work_todo.remove(task)
