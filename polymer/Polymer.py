@@ -147,14 +147,16 @@ class py3_mp_queue(mpq.Queue):
     def clear(self):
         """ Remove all elements from the Queue. """
         while not self.empty():
-            self.get()
+            self.get(block=False, timeout=0.05)
 
 
-class Worker(object):
+class Worker(multiprocessing.Process):
     """multiprocessing worker"""
 
+    # This is on the Worker() class
     @logger.catch(reraise=True)
     def __init__(self, w_id, todo_q, done_q, default_sleep=0.00001):
+        super().__init__()
         assert isinstance(default_sleep, int) or isinstance(default_sleep, float)
         self.w_id = w_id
         self.cycle_sleep = default_sleep  # How long the worker should sleep
@@ -182,6 +184,7 @@ class Worker(object):
             # time.sleep(self.cycle_sleep)
             self.task = None
 
+    # This is on the Worker() class
     @logger.catch(reraise=True)
     def done_q_send(self, msg_dict):
         """Send message dicts through done_q, and throw explicit errors for
@@ -198,7 +201,6 @@ class Worker(object):
             hash_func = md5()
             hash_func.update(str(msg_dict))
             dict_hash = str(hash_func.hexdigest())[-7:]  # Last 7 digits of hash
-            linesep = os.linesep
             logger.debug("done_q_send({0}) Can't pickle this dict:{1}".format(dict_hash, str(msg_dict),))
             logger.debug("    Sometimes pickling problems come from open / hung TCP sockets")
 
@@ -222,6 +224,7 @@ class Worker(object):
             for key in sorted(set(msg_dict.keys()).difference(no_pickle_keys)):
                 logger.debug("      msg_dict['{0}']: {1}".format(key, repr(msg_dict.get(key))))
 
+    # This is on the Worker() class
     @logger.catch(reraise=True)
     def invalid_dict_pickle_keys(self, msg_dict) -> list:
         """
@@ -246,6 +249,7 @@ class Worker(object):
 
         return no_pickle_keys
 
+    # This is on the Worker() class
     @logger.catch(reraise=True)
     def invalid_obj_pickle_attrs(self, thisobj):
         no_pickle_attrs = []
@@ -260,13 +264,16 @@ class Worker(object):
                 no_pickle_attrs.append(attr)  # This attr is unpicklable
         return no_pickle_attrs
 
+    # This is on the Worker() class
     @logger.catch(reraise=True)
     def message_loop(self, todo_q, done_q):
         """Loop through messages and execute tasks"""
         t_msg = {}
         while t_msg.get("state", "") != "__DIE__":
             try:
-                t_msg = todo_q.get(True, self.cycle_sleep)  # Poll blocking
+                t_msg = todo_q.get_nowait()
+                if t_msg != {}:
+                    logger.debug("Got {0} from todo_q".format(t_msg))
                 self.task = t_msg.get("task", "")  # __DIE__ has no task
                 if self.task != "":
 
@@ -285,7 +292,7 @@ class Worker(object):
                     self.task.task_stop = time.time()  # Seconds since epoch
 
                     self.done_q_send(
-                        {"w_id": self.w_id, "task": self.task, "state": "__FINISHED__"}
+                        {"w_id": self.w_id, "task": self.task, "state": "__TASK_FINISHED__"}
                     )  # Ack work finished
 
                     self.task = None
@@ -293,10 +300,13 @@ class Worker(object):
                 pass
             except Full:
                 time.sleep(0.1)
+
             ## Disable extraneous error handling...
-            except Exception:
+            except Exception as eee:
                 if self.task is not None:
                     self.task.task_stop = time.time()  # Seconds since epoch
+                else:
+                    logger.error(str(eee))
                 # Handle all other errors here...
                 tb_str = "".join(tb.format_exception(*(sys.exc_info())))
                 self.done_q_send(
@@ -486,6 +496,7 @@ class TaskMgr(object):
         """
         If not in a hot_loop, call supervise() to start the tasks.
         """
+        state = "__WAITING__"
         self.retval = set({})
         stats = TaskMgrStats(
             worker_count=self.worker_count,
@@ -516,18 +527,17 @@ class TaskMgr(object):
 
         finished = False
         while not finished:
-
             try:
                 if hot_loop is True:
                     # Calculate the adaptive loop delay
-                    delay = self.calc_wait_time(stats.exec_times)
-                    self.queue_tasks_from_controller(delay=delay)  # queue tasks
-                    time.sleep(delay)
+                    loop_delay = self.calc_wait_time(stats.exec_times)
+                    self.queue_tasks_from_controller(loop_delay=loop_delay)  # queue tasks
+                    time.sleep(loop_delay)
 
-                r_msg = self.done_q.get_nowait()  # __ACK__ or __FINISHED__
+                r_msg = self.done_q.get_nowait()  # __ACK__ or __TASK_FINISHED__
                 task = r_msg.get("task")
                 w_id = r_msg.get("w_id")
-                state = r_msg.get("state", "")
+                state = r_msg.get("state", "__WAITING__")
 
                 # Verify that the user called `super().__init__()` in their
                 #      BaseTask() subclass __init__()
@@ -541,6 +551,7 @@ class TaskMgr(object):
                     #    in their BaseTask() subclass __init__()
                     raise NameError("You did NOT call `super().__init__()` in your BaseTask() sub-class.")
 
+
                 if state == "__ACK__":
                     self.worker_assignments[w_id] = task
                     self.work_todo.remove(task)
@@ -549,7 +560,29 @@ class TaskMgr(object):
                     if self.log_level >= 3:
                         logger.debug("w_id={0} received task={1}".format(w_id, task))
 
-                elif state == "__FINISHED__":
+                #elif state == "":
+                #    num_tasks = len(self.work_todo)
+                #    if len(self.work_todo) > 0:
+                #        state = "__WAITING__"
+                #    else:
+                #        state = "__EMPTY__"
+
+                elif state == "__WAITING__":
+                    # Wating for more task updates...
+                    num_tasks = len(self.work_todo)
+                    if num_tasks > 0:
+                        continue
+
+                    elif self.num_tasks_in_progress > 0:
+                        continue
+
+                    else:
+                        # It's unclear why we are here...
+                        raise NotImplementedError
+
+                elif state == "__TASK_FINISHED__":
+                    if self.log_level >= 2:
+                        logger.info("state: __TASK_FINISHED__")
                     now = time.time()
                     task_exec_time = task.task_stop - task.task_start
                     task_queue_time = now - task.queue_time - task_exec_time
@@ -558,12 +591,11 @@ class TaskMgr(object):
 
                     if self.log_level >= 2:
                         logger.info(
-                            "TaskMgr.work_todo: {0} tasks left".format(
-                                len(self.work_todo)
+                            "TaskMgr.work_todo: {0} tasks unassigned and {1} tasks in-progress".format(
+                                len(self.work_todo), self.num_tasks_in_progress
                             )
                         )
                     if self.log_level >= 3:
-                        logger.debug("TaskMgr.work_todo: {0}".format(self.work_todo))
                         logger.debug("r_msg: {0}".format(r_msg))
 
                     if hot_loop is False:
@@ -577,7 +609,8 @@ class TaskMgr(object):
                         self.worker_assignments.pop(w_id)  # Delete the key
 
                 elif state == "__ERROR__":
-
+                    if self.log_level >= 1:
+                        logger.info("state: __ERROR__")
                     now = time.time()
                     task_exec_time = task.task_stop - task.task_start
                     task_queue_time = now - task.queue_time - task_exec_time
@@ -610,24 +643,41 @@ class TaskMgr(object):
                                 pass
                             self.retval.add(task)  # Add result to retval
 
+
                     self.respawn_dead_workers()
+
+
+                elif state == "__DIE__":
+                    # NOTE Doing NOTHING here... why??
+                    if self.log_level >= 1:
+                        logger.info("state: __DIE__")
+
+
+                else:
+                    if len(self.work_todo) > 0:
+                        logger.error("Unhandled state: '{1}' with {0} tasks todo".format(num_tasks, state))
+                        raise ValueError("Unknown state: '{0}'".format(state))
+                    else:
+                        logger.error("Unhandled state: '{1}' with {0} tasks todo".format(num_tasks, state))
 
             except Empty:
                 state = "__EMPTY__"
+                if self.log_level >= 1:
+                    logger.info("state: '__EMPTY__'")
 
             except Exception as ee:
                 tb_str = "".join(tb.format_exception(*(sys.exc_info())))
-                print("ERROR:")
-                print(ee, tb_str)
+                logger.error("ERROR: " + str(ee) + str(tb_str))
 
-            # PIZZA
             if stats.is_log_time is True:
                 if self.log_level >= 0:
                     logger.info(stats.log_stats_message)
 
             # Adaptive loop delay unless on Mac OSX... OSX delay is constant...
-            delay = self.calc_wait_time(stats.exec_times)
-            time.sleep(delay)
+
+            # At most, sleep 50 milliseconds...
+            loop_delay = self.calc_wait_time(stats.exec_times)
+            time.sleep(loop_delay)
 
             self.respawn_dead_workers()
             finished = self.are_tasks_finished()
@@ -636,9 +686,10 @@ class TaskMgr(object):
         if hot_loop is False:
             self.stop_workers()
             for w_id, p in self.workers.items():
+                if self.log_level >= 1:
+                    logger.info("{0} mp.join()".format(str(p)))
                 p.join()
 
-            # PIZZA
             ## Log a final stats summary...
             if self.log_level > 0:
                 logger.info(stats.log_stats_message)
@@ -650,30 +701,31 @@ class TaskMgr(object):
 
         # Work around Mac OSX problematic queue.qsize() implementation...
         if sys.platform == "darwin":
-            wait_time = 0.00001  # 10us delay to avoid worker / done_q race
+            wait_time = 0.00001  # 10us loop_delay to avoid worker / done_q race
 
         elif num_samples > 0.0:
             # NOTE:  OSX doesn't implement queue.qsize(), I worked around the
             # problem
             queue_size = max(self.done_q.qsize(), 1.0) + max(self.todo_q.qsize(), 1.0)
             min_task_time = min(exec_times)
-            wait_time = min_task_time / queue_size
+            wait_time = float(min_task_time) / float(queue_size)
 
         else:
-            wait_time = 0.00001  # 10us delay to avoid worker / done_q race
+            wait_time = 0.00001  # 10us loop_delay to avoid worker / done_q race
 
-        return wait_time
+        # Wait at MOST 1-millisecond...
+        return min(0.001, wait_time)
 
     @logger.catch(reraise=True)
-    def queue_tasks_from_controller(self, delay=0.0):
+    def queue_tasks_from_controller(self, loop_delay=0.0):
         finished = False
         while not finished:
             try:
                 ## Hot loops will queue a list of tasks...
                 tasklist = self.controller.to_taskmgr_q.get_nowait()
                 for task in tasklist:
-                    if delay > 0.0:
-                        task.worker_loop_delay = delay
+                    if loop_delay > 0.0:
+                        task.worker_loop_delay = loop_delay
                     self.work_todo.append(task)
                     self.queue_task(task)
             except Empty:
@@ -687,13 +739,21 @@ class TaskMgr(object):
         task.queue_time = time.time()  # Record the queueing time
         self.todo_q_send({"task": task})
 
+    @property
+    @logger.catch(reraise=True)
+    def num_tasks_in_progress(self):
+        """Number of assigned tasks that are still in-progress."""
+        return len(self.worker_assignments.keys())
+
     @logger.catch(reraise=True)
     def are_tasks_finished(self):
-        if (len(self.work_todo) == 0) and (len(self.worker_assignments.keys()) == 0):
+        if (len(self.work_todo) == 0) and self.num_tasks_in_progress == 0:
             return True
+
         elif (self.hot_loop is False) and (len(self.retval)) == self.num_tasks:
             # We need this exit condition due to __ERROR__ race conditions...
             return True
+
         return False
 
     @logger.catch(reraise=True)
