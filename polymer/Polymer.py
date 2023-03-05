@@ -107,21 +107,28 @@ class py3_mp_queue(mpq.Queue):
     @logger.catch(reraise=True)
     def put(self, *args, **kwargs):
         # Infinite recursion possible if we don't use super() here
-        try:
-            super(py3_mp_queue, self).put(*args, **kwargs)
-
-        except Full:
-            pass
+        finished = False
+        logged_full = False
+        while not finished:
+            try:
+                super(py3_mp_queue, self).put(*args, **kwargs)
+                finished = True
+            except Full:
+                if logged_full is False:
+                    logger.warning("Queue Full.  Resubmitting")
+                    logged_full = True
+                pass
 
         if not sys.platform == "darwin":
             self.size.increment(1)
+        return True
 
     @logger.catch(reraise=True)
     def get(self, *args, **kwargs):
-        if not sys.platform == "darwin":
-            self.size.increment(-1)
         try:
             item = super(py3_mp_queue, self).get(*args, **kwargs)
+            if not sys.platform == "darwin":
+                self.size.increment(-1)
             return item
 
         except Empty:
@@ -281,7 +288,7 @@ class Worker(multiprocessing.Process):
                     self.task.task_start = time.time()  # Start the timer
                     # Send ACK to the controller who requested work on this task
                     self.done_q_send(
-                        {"w_id": self.w_id, "task": self.task, "state": "__ACK__"}
+                        {"w_id": self.w_id, "task": self.task, "state": "__ACK_TASK__"}
                     )
 
                     # Update the sleep time with latest recommendations
@@ -293,7 +300,7 @@ class Worker(multiprocessing.Process):
                     self.task.task_stop = time.time()  # Seconds since epoch
 
                     self.done_q_send(
-                        {"w_id": self.w_id, "task": self.task, "state": "__TASK_FINISHED__"}
+                        {"w_id": self.w_id, "task": self.task, "state": "__FINISHED_TASK__"}
                     )  # Ack work finished
 
                     self.task = None
@@ -366,6 +373,7 @@ class TaskMgrStats(object):
         """
         Build log message strings and reset the stats.  Final means all tasks are done and we need a final stats report for ALL runs.
         """
+        assert isinstance(final, bool)
         for ii in self.exec_times:
             self.all_exec_times.append(ii)
         for ii in self.queue_times:
@@ -394,14 +402,13 @@ class TaskMgrStats(object):
         avg_task_rate = total_tasks / time_delta
         pct_busy = time_worked / total_work_time * 100.0
 
-        # Reset stats begin time...
         if final is False:
-            self.reset_stats()
-
-        stats_digits = 5
-        task_msg = """Ran {0} tasks, {1} tasks/s; {2} workers {3}% busy""".format(
-            total_tasks, round(avg_task_rate, 1), self.worker_count, round(pct_busy, 1)
-        )
+            polling_status = ""
+        else:
+            polling_status = "FINAL: "
+        stats_digits = 3
+        task_msg = """{6}{5}Ran {0} tasks in {4} secs, {1} tasks/s; {2} workers {3}% busy""".format(
+            total_tasks, round(avg_task_rate, stats_digits), self.worker_count, round(pct_busy, 1), round(time_delta, stats_digits), polling_status, os.linesep)
         # Float format props...
         #    https://stackoverflow.com/a/33219633/667301
         task_mam = """     Task run times (seconds): {:5f}/{:5f}/{:5f} (min/avg/max)""".format(
@@ -412,6 +419,10 @@ class TaskMgrStats(object):
         queue_mam = """     Time in queue  (seconds): {:5f}/{:5f}/{:5f} (min/avg/max)""".format(
             round(min_queue_time, stats_digits), round(avg_queue_time, stats_digits), round(max_queue_time, stats_digits)
         )
+
+        # Reset stats begin time...
+        if final is False:
+            self.reset_stats()
 
         return """{0}\n{1}\n{2}""".format(task_msg, task_mam, queue_mam)
 
@@ -460,6 +471,7 @@ class TaskMgr(object):
         self.configure_logging()
         self.hot_loop = hot_loop
         self.retval = set({})
+        self.previously_logged_state = None
 
         self.validate_attribute_types()
 
@@ -535,7 +547,7 @@ class TaskMgr(object):
                 self.num_tasks += 1
                 if self.log_level >= 2:
                     logmsg = "TaskMgr.supervise() queued task: {0}".format(task)
-                    logger.info(logmsg)
+                    logger.debug(logmsg)
                 self.queue_task(task)
 
         finished = False
@@ -547,7 +559,7 @@ class TaskMgr(object):
                     self.queue_tasks_from_controller(loop_delay=loop_delay)  # queue tasks
                     time.sleep(loop_delay)
 
-                r_msg = self.done_q.get_nowait()  # __ACK__ or __TASK_FINISHED__
+                r_msg = self.done_q.get_nowait()  # __ACK_TASK__ or __FINISHED_TASK__
                 task = r_msg.get("task")
                 w_id = r_msg.get("w_id")
                 state = r_msg.get("state", "__WAITING__")
@@ -565,13 +577,28 @@ class TaskMgr(object):
                     raise NameError("You did NOT call `super().__init__()` in your BaseTask() sub-class.")
 
 
-                if state == "__ACK__":
+                if state == "__ACK_TASK__":
+                    if self.log_level >= 2:
+                        if self.previously_logged_state != state:
+                            logger.info("state: {0}".format(state))
+                        self.previously_logged_state = state
+
                     self.worker_assignments[w_id] = task
                     self.work_todo.remove(task)
                     if self.log_level >= 3:
                         logger.debug("r_msg: {0}".format(r_msg))
                     if self.log_level >= 3:
                         logger.debug("w_id={0} received task={1}".format(w_id, task))
+
+                    self.conditional_print_interim_stats(stats)
+
+                    # Modified 2023-03-05...
+                    state = "__WAITING__"
+                    if self.log_level >= 2:
+                        if self.previously_logged_state != state:
+                            logger.info("state: {0}".format(state))
+                        self.previously_logged_state = state
+                    continue
 
                 elif state == "":
                     num_tasks = len(self.work_todo)
@@ -580,22 +607,35 @@ class TaskMgr(object):
                     else:
                         state = "__EMPTY__"
 
+                    if self.log_level >= 2:
+                        if self.previously_logged_state != state:
+                            logger.info("state: {0}".format(state))
+                        self.previously_logged_state = state
+
                 elif state == "__WAITING__":
+                    if self.log_level >= 2:
+                        if self.previously_logged_state != state:
+                            logger.info("state: {0}".format(state))
+                        self.previously_logged_state = state
                     # Wating for more task updates...
                     num_tasks = len(self.work_todo)
+                    self.conditional_print_interim_stats(stats)
                     if num_tasks > 0:
                         continue
 
                     elif self.num_tasks_in_progress > 0:
+                        self.conditional_print_interim_stats(stats)
                         continue
 
                     else:
                         # It's unclear why we are here...
                         raise NotImplementedError
 
-                elif state == "__TASK_FINISHED__":
+                elif state == "__FINISHED_TASK__":
                     if self.log_level >= 2:
-                        logger.info("state: __TASK_FINISHED__")
+                        if self.previously_logged_state != state:
+                            logger.info("state: {0}".format(state))
+                        self.previously_logged_state = state
                     now = time.time()
                     task_exec_time = task.task_stop - task.task_start
                     task_queue_time = now - task.queue_time - task_exec_time
@@ -621,9 +661,17 @@ class TaskMgr(object):
                         )  # Send to the controller
                         self.worker_assignments.pop(w_id)  # Delete the key
 
+                    # Modified 2023-03-05...
+                    state = "__WAITING__"
+
+                    self.conditional_print_interim_stats(stats)
+                    continue
+
                 elif state == "__ERROR__":
                     if self.log_level >= 1:
-                        logger.info("state: __ERROR__")
+                        if self.previously_logged_state != state:
+                            logger.info("state: {0}".format(state))
+                        self.previously_logged_state = state
                     now = time.time()
                     task_exec_time = task.task_stop - task.task_start
                     task_queue_time = now - task.queue_time - task_exec_time
@@ -663,7 +711,9 @@ class TaskMgr(object):
                 elif state == "__DIE__":
                     # NOTE Doing NOTHING here... why??
                     if self.log_level >= 1:
-                        logger.info("state: __DIE__")
+                        if self.previously_logged_state != state:
+                            logger.info("state: {0}".format(state))
+                        self.previously_logged_state = state
 
 
                 else:
@@ -676,15 +726,15 @@ class TaskMgr(object):
             except Empty:
                 state = "__EMPTY__"
                 if self.log_level >= 1:
-                    logger.info("state: '__EMPTY__'")
+                    if self.previously_logged_state != state:
+                        logger.info("state: {0}".format(state))
+                    self.previously_logged_state = state
 
             except Exception as ee:
                 tb_str = "".join(tb.format_exception(*(sys.exc_info())))
                 logger.error("ERROR: " + str(ee) + str(tb_str))
 
-            if stats.is_log_time is True:
-                if self.log_level >= 0:
-                    logger.info(stats.log_stats_message(final=False))
+            self.conditional_print_interim_stats(stats)
 
             # Adaptive loop delay unless on Mac OSX... OSX delay is constant...
 
@@ -699,14 +749,25 @@ class TaskMgr(object):
         if hot_loop is False:
             self.stop_workers()
             for w_id, p in self.workers.items():
-                if self.log_level >= 1:
-                    logger.info("Stopping {0} with mp.join()".format(str(p)))
+                if self.log_level >= 2:
+                    logger.debug("Stopping {0} with mp.join()".format(str(p)))
                 p.join()
 
             ## Log a final stats summary...
             if self.log_level > 0:
                 logger.info(stats.log_stats_message(final=True))
             return self.retval
+
+    @logger.catch(reraise=True)
+    def conditional_print_interim_stats(self, stats):
+        if self.work_todo == 0:
+            # Save the log message for the FINAL log message
+            return False
+        elif stats.is_log_time is True:
+            if self.log_level >= 0:
+                logger.info(stats.log_stats_message(final=False))
+            return True
+        return False
 
     @logger.catch(reraise=True)
     def calc_wait_time(self, exec_times):
