@@ -155,13 +155,14 @@ class Worker(multiprocessing.Process):
 
     # This is on the Worker() class
     @logger.catch(reraise=True)
-    def __init__(self, w_id, todo_q, done_q, default_sleep=0.00001):
+    def __init__(self, w_id, todo_q, done_q, default_sleep=0.00001, log_level=0):
         super().__init__()
         assert isinstance(default_sleep, int) or isinstance(default_sleep, float)
         self.w_id = w_id
         self.cycle_sleep = default_sleep  # How long the worker should sleep
         self.task = None
         self.done_q = done_q
+        self.log_level = log_level
 
         try:
             self.message_loop(todo_q, done_q)  # do work
@@ -272,7 +273,7 @@ class Worker(multiprocessing.Process):
         while t_msg.get("state", "") != "__DIE__":
             try:
                 t_msg = todo_q.get_nowait()
-                if t_msg != {}:
+                if t_msg != {} and self.log_level >= 3:
                     logger.debug("Got {0} from todo_q".format(t_msg))
                 self.task = t_msg.get("task", "")  # __DIE__ has no task
                 if self.task != "":
@@ -325,29 +326,30 @@ class TaskMgrStats(object):
 
     @logger.catch(reraise=True)
     def __init__(self, worker_count, log_interval=5, hot_loop=False):
-
-        assert isinstance(worker_count, int)
-        assert isinstance(log_interval, int)
         assert isinstance(hot_loop, bool)
 
-        self.worker_count = worker_count
+        self.worker_count = int(worker_count)
         self.log_interval = float(log_interval)
         self.hot_loop = hot_loop
 
-        self.stats_start = time.time()
+        self.all_tasks_started = time.time()
+        self.stats_diff_start = time.time()
         self.exec_times = []
         self.queue_times = []
 
+        self.all_exec_times = []
+        self.all_queue_times = []
+
     @logger.catch(reraise=True)
     def reset_stats(self):
-        self.stats_start = time.time()
+        self.stats_diff_start = time.time()
         self.exec_times = []
         self.queue_times = []
 
     @property
     @logger.catch(reraise=True)
     def time_delta(self):
-        return time.time() - self.stats_start
+        return time.time() - self.stats_diff_start
 
     @property
     @logger.catch(reraise=True)
@@ -359,16 +361,17 @@ class TaskMgrStats(object):
             return True
         return False
 
-    @property
     @logger.catch(reraise=True)
-    def log_stats_message(self):
+    def log_stats_message(self, final=False):
         """
-        Build log message strings and reset the stats
+        Build log message strings and reset the stats.  Final means all tasks are done and we need a final stats report for ALL runs.
         """
+        for ii in self.exec_times:
+            self.all_exec_times.append(ii)
+        for ii in self.queue_times:
+            self.all_queue_times.append(ii)
+
         time_delta = deepcopy(self.time_delta)
-        total_work_time = self.worker_count * time_delta
-        time_worked = sum(self.exec_times)
-        pct_busy = time_worked / total_work_time * 100.0
 
         min_task_time = min(self.exec_times)
         avg_task_time = sum(self.exec_times) / len(self.exec_times)
@@ -378,12 +381,22 @@ class TaskMgrStats(object):
         avg_queue_time = sum(self.queue_times) / len(self.queue_times)
         max_queue_time = max(self.queue_times)
 
-        time_delta = self.time_delta
-        total_tasks = len(self.exec_times)
+        if final is False:
+            time_delta = self.time_delta
+            total_tasks = len(self.exec_times)
+            time_worked = sum(self.exec_times)
+        else:
+            time_delta = time.time() - self.all_tasks_started
+            total_tasks = len(self.all_exec_times)
+            time_worked = sum(self.all_exec_times)
+
+        total_work_time = self.worker_count * time_delta
         avg_task_rate = total_tasks / time_delta
+        pct_busy = time_worked / total_work_time * 100.0
 
         # Reset stats begin time...
-        self.reset_stats()
+        if final is False:
+            self.reset_stats()
 
         stats_digits = 5
         task_msg = """Ran {0} tasks, {1} tasks/s; {2} workers {3}% busy""".format(
@@ -560,12 +573,12 @@ class TaskMgr(object):
                     if self.log_level >= 3:
                         logger.debug("w_id={0} received task={1}".format(w_id, task))
 
-                #elif state == "":
-                #    num_tasks = len(self.work_todo)
-                #    if len(self.work_todo) > 0:
-                #        state = "__WAITING__"
-                #    else:
-                #        state = "__EMPTY__"
+                elif state == "":
+                    num_tasks = len(self.work_todo)
+                    if len(self.work_todo) > 0 or self.num_tasks_in_progress > 0:
+                        state = "__WAITING__"
+                    else:
+                        state = "__EMPTY__"
 
                 elif state == "__WAITING__":
                     # Wating for more task updates...
@@ -671,7 +684,7 @@ class TaskMgr(object):
 
             if stats.is_log_time is True:
                 if self.log_level >= 0:
-                    logger.info(stats.log_stats_message)
+                    logger.info(stats.log_stats_message(final=False))
 
             # Adaptive loop delay unless on Mac OSX... OSX delay is constant...
 
@@ -687,12 +700,12 @@ class TaskMgr(object):
             self.stop_workers()
             for w_id, p in self.workers.items():
                 if self.log_level >= 1:
-                    logger.info("{0} mp.join()".format(str(p)))
+                    logger.info("Stopping {0} with mp.join()".format(str(p)))
                 p.join()
 
             ## Log a final stats summary...
             if self.log_level > 0:
-                logger.info(stats.log_stats_message)
+                logger.info(stats.log_stats_message(final=True))
             return self.retval
 
     @logger.catch(reraise=True)
@@ -795,7 +808,7 @@ class TaskMgr(object):
                     )
                 self.workers[w_id] = Process(
                     target=Worker,
-                    args=(w_id, self.todo_q, self.done_q, self.worker_cycle_sleep),
+                    args=(w_id, self.todo_q, self.done_q, self.worker_cycle_sleep, self.log_level),
                 )
                 self.workers[w_id].daemon = True
                 self.workers[w_id].start()
