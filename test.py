@@ -38,20 +38,20 @@ def Controller():
     all_tasks = []
 
     ## Build ten tasks... do *not* depend on execution order...
-    num_tasks = 100
+    num_tasks = 401
     for ii in range(0, num_tasks):
         all_tasks.append(SimpleTask(text="SimpleTask() instance number: {0}".format(ii), wait=ii))
 
     targs = {
         'work_todo': all_tasks,      # a list of SimpleTask() instances
-        'hot_loop': False,   # If True, continuously loop over the tasks
-        'worker_count': 30,          # Number of workers (default: 5)
+        'hot_loop': False,           # If True, continuously loop over the tasks
+        'worker_count': 18,          # Number of workers (default: 5)
         'resubmit_on_error': False,  # Do not retry errored jobs...
         'queue': ControllerQueue(),
         'worker_cycle_sleep': 0.001, # Worker sleep time after a task
         'log_stdout': False,         # Don't log to stdout (default: True)
         'log_path':  "taskmgr.log",  # Log file name
-        'log_level': 0,              # Logging off is 0 (debugging=3)
+        'log_level': 3,              # Logging off is 0 (debugging=3)
         'log_interval': 10,          # Statistics logging interval
     }
 
