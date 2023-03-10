@@ -117,7 +117,6 @@ class py3_mp_queue(mpq.Queue):
                 if logged_full is False:
                     logger.warning("Queue Full.  Resubmitting")
                     logged_full = True
-                pass
 
         if not sys.platform == "darwin":
             self.size.increment(1)
