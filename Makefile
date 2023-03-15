@@ -7,6 +7,8 @@ clean:
 	find ./* -name '*.pyc' -exec rm {} \;
 	find ./* -name '*.so' -exec rm {} \;
 	find ./* -name '*.coverage' -exec rm {} \;
+	find ./* -name '*.undodir' -exec rm -rf {} \;
+	rm -rf .undodir/ \;
 	@# A minus sign prefixing the line means it ignores the return value
 	-find ./* -path '*__pycache__' -exec rm -rf {} \;
 	-rm -rf .pytest_cache/
