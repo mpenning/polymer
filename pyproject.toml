@@ -1,12 +1,12 @@
 [tool.poetry]
 name = "polymer"
-version = "1.0.1"
+version = "1.0.3"
 description = "Manage parallel tasks"
 authors = [
     "Mike Pennington <mike@pennington.net>",
 ]
 license = "GPLv3"
-readme = "README.rst"
+readme = "README.md"
 homepage = "https://github.com/mpenning/polymer"
 documentation = ""
 keywords = ["Python", "Multiprocessing"]
