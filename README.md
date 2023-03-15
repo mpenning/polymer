@@ -3,7 +3,7 @@
 
 In many cases, this package can be replaced by Python3's [`concurrent.futures.ProcessPoolExecutor()`](https://docs.python.org/3/library/concurrent.futures.html#processpoolexecutor).  As of 2023, this package is vulnerable to process deadlocks, and in-general Python3 tripping all over itself. These problems are better solved in `concurrent.futures`.  At some point in the future, I may rewrite `polymer` as a wrapper around `concurrent.futures`.
 
-As if that wasn't enough, `polymer` crashes when you try to use it in some python versions (it's known to be completely useless in Python 3.7.13).
+As if that wasn't enough, `polymer` crashes when you try to use it in some python versions (it's known to be completely useless in Python 3.7.13 on Debian 11).
 
 # Original Summary
 
